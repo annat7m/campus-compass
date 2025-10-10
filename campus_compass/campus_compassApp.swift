@@ -1,8 +1,8 @@
 //
 //  campus_compassApp.swift
-//  campus_compass
+//  Campus Compass
 //
-//  Created by Anna on 10/6/25.
+//  Created by Anna Tymoshenko on 10/6/25.
 //
 
 import SwiftUI

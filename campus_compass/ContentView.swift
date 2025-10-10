@@ -2,20 +2,24 @@
 //  ContentView.swift
 //  campus_compass
 //
-//  Created by Anna on 10/6/25.
+//  Created by Anna Tymoshenko on 10/6/25.
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            HomeView()
+                .tabItem { Label("Home", systemImage: "house.fill") }
+
+            MapView()
+                .tabItem { Label("Map", systemImage: "map") }
+
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape") }
         }
-        .padding()
+        .tint(.red)
     }
 }
 
