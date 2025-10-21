@@ -7,19 +7,6 @@
 
 import SwiftUI
 
-//struct HomeView: View {
-//    var body: some View {
-//        VStack(spacing: 12) {
-//                    Image(systemName: "globe")
-//                        .imageScale(.large)
-//                    Text("Hello, world!")
-//                        .font(.headline)
-//                    Text("This is Home")
-//                        .foregroundStyle(.secondary)
-//                }
-//                .padding()
-//    }
-//}
 
 struct SearchBarView: View {
     
@@ -30,29 +17,26 @@ struct SearchBarView: View {
             .padding()
     }
 }
-struct QuickActView: View {
+struct MenuSectionView: View {
+    var title: String
+    var items: [MenuItem]
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            
-            // Title
-            Text("Quick Actions")
+            Text(title)
                 .font(.headline)
                 .padding(.horizontal)
             
-            // Action Buttons
             VStack(spacing: 12) {
-                ActionButton(title: "View Campus Map", systemImage: "mappin.and.ellipse", action: {
-                    print("View Campus Map tapped")
-                })
-                ActionButton(title: "Find Parking", systemImage: "mappin.and.ellipse", action: {
-                    print("View Campus Map tapped")
-                })
-                ActionButton(title: "Find Dining Options", systemImage: "mappin.and.ellipse", action: {
-                    print("View Campus Map tapped")
-                })
+                ForEach(items) { item in
+                    ActionButton(
+                        title: item.title,
+                        systemImage: item.systemImage,
+                        action: item.action
+                    )
+                }
             }
             .padding(.horizontal)
-            
         }
         .padding(.vertical)
         .background(
@@ -64,7 +48,54 @@ struct QuickActView: View {
     }
 }
 
-// MARK: - Custom Button Component
+struct MenuItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+}
+
+struct MenuView: View {
+    var body: some View {
+        ScrollView {
+            MenuSectionView(
+                title: "Quick Actions",
+                items: [
+                    MenuItem(title: "View Campus Map", systemImage: "map", action: { print("Campus Map tapped") }),
+                    MenuItem(title: "Find Parking", systemImage: "car.fill", action: { print("Find Parking tapped") }),
+                    MenuItem(title: "Find Dining Options", systemImage: "fork.knife", action: { print("Find Dining tapped")})
+                ]
+            )
+            
+            MenuSectionView(
+                title: "Popular Destinations",
+                items: [
+                    MenuItem(title: "Library", systemImage: "book.fill", action: { print("Library tapped") }),
+                    MenuItem(title: "Gym", systemImage: "figure.strengthtraining.traditional", action: { print("Gym tapped") })
+                ]
+            )
+            
+            MenuSectionView(
+                title: "Recent Locations",
+                items: [MenuItem(title: "Strain Science Center", systemImage: "building", action:{print("Strain tapped") })
+                ]
+            )
+            
+            MenuSectionView(
+                title: "Favorites",
+                items: [MenuItem(title: "Strain Science Center", systemImage: "building", action:{print("Strain tapped") }),
+                        MenuItem(title: "University Center", systemImage: "building", action:{print("UC tapped") })
+                ]
+            )
+        }
+    }
+}
+
+#Preview {
+    ContentView()
+}
+
+
 import SwiftUI
 
 /// A reusable button component for your app's menu-style lists.
@@ -122,7 +153,7 @@ struct TitleView: View {
             Text("Navigate Pacific University with ease").frame(maxWidth: .infinity, alignment: .center).foregroundColor(.gray)
             SearchBarView()
             
-            QuickActView()
+            MenuView()
             
         }
         .padding()
@@ -135,7 +166,6 @@ struct TitleView: View {
 
 
 #Preview {
-//    HomeView()
     TitleView()
     
 }
