@@ -14,9 +14,15 @@ struct SearchBarView: View {
     var body: some View {
         TextField("Search...", text: .constant(""))
             .textFieldStyle(RoundedBorderTextFieldStyle())
+            .padding().background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+            )
             .padding()
     }
 }
+
 struct MenuSectionView: View {
     var title: String
     var items: [MenuItem]
@@ -91,9 +97,6 @@ struct MenuView: View {
     }
 }
 
-#Preview {
-    ContentView()
-}
 
 
 import SwiftUI
@@ -108,7 +111,7 @@ struct ActionButton: View {
         Button(action: action) {
             HStack {
                 Image(systemName: systemImage)
-                    .foregroundColor(.accentColor)
+                    .foregroundColor(.red)
                 Text(title)
                     .foregroundColor(.primary)
                     .fontWeight(.medium)
@@ -124,7 +127,7 @@ struct ActionButton: View {
 }
 
 
-struct TitleView: View {
+struct HomeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack{
@@ -166,8 +169,7 @@ struct TitleView: View {
 
 
 #Preview {
-    TitleView()
-    
+    ContentView()
 }
 
 
