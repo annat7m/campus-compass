@@ -30,8 +30,70 @@ struct SearchBarView: View {
             .padding()
     }
 }
+struct QuickActView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            
+            // Title
+            Text("Quick Actions")
+                .font(.headline)
+                .padding(.horizontal)
+            
+            // Action Buttons
+            VStack(spacing: 12) {
+                ActionButton(title: "View Campus Map", systemImage: "mappin.and.ellipse", action: {
+                    print("View Campus Map tapped")
+                })
+                ActionButton(title: "Find Parking", systemImage: "mappin.and.ellipse", action: {
+                    print("View Campus Map tapped")
+                })
+                ActionButton(title: "Find Dining Options", systemImage: "mappin.and.ellipse", action: {
+                    print("View Campus Map tapped")
+                })
+            }
+            .padding(.horizontal)
+            
+        }
+        .padding(.vertical)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+        )
+        .padding()
+    }
+}
 
-struct Title: View {
+// MARK: - Custom Button Component
+import SwiftUI
+
+/// A reusable button component for your app's menu-style lists.
+struct ActionButton: View {
+    var title: String
+    var systemImage: String
+    var action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: systemImage)
+                    .foregroundColor(.accentColor)
+                Text(title)
+                    .foregroundColor(.primary)
+                    .fontWeight(.medium)
+                Spacer()
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+            )
+        }
+    }
+}
+
+
+struct TitleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack{
@@ -60,6 +122,8 @@ struct Title: View {
             Text("Navigate Pacific University with ease").frame(maxWidth: .infinity, alignment: .center).foregroundColor(.gray)
             SearchBarView()
             
+            QuickActView()
+            
         }
         .padding()
         Spacer()
@@ -72,7 +136,7 @@ struct Title: View {
 
 #Preview {
 //    HomeView()
-    Title()
+    TitleView()
     
 }
 
