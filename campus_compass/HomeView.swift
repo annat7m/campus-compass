@@ -99,8 +99,6 @@ struct MenuView: View {
 
 
 
-import SwiftUI
-
 /// A reusable button component for your app's menu-style lists.
 struct ActionButton: View {
     var title: String
@@ -143,7 +141,7 @@ struct HomeView: View {
                                 Image(systemName: "person.circle.fill") // SF Symbol
                                     .resizable()
                                     .frame(width: 40, height: 40)
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(.red)
                             }
                         }
                         
