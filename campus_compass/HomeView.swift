@@ -125,6 +125,7 @@ struct ActionButton: View {
 }
 
 
+
 struct HomeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -143,7 +144,7 @@ struct HomeView: View {
                                     .frame(width: 40, height: 40)
                                     .foregroundColor(.red)
                             }
-                        }
+            }
                         
 
             Divider()
