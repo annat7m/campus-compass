@@ -7,9 +7,7 @@
 
 import SwiftUI
 
-
 struct SearchBarView: View {
-    
     @State private var searchText: String = ""
     var body: some View {
         TextField("Search...", text: .constant(""))
@@ -84,14 +82,14 @@ struct MenuView: View {
             MenuSectionView(
                 title: "Recent Locations",
                 items: [MenuItem(title: "Strain Science Center", systemImage: "building", action:{print("Strain tapped") })
-                ]
+                       ]
             )
             
             MenuSectionView(
                 title: "Favorites",
                 items: [MenuItem(title: "Strain Science Center", systemImage: "building", action:{print("Strain tapped") }),
                         MenuItem(title: "University Center", systemImage: "building", action:{print("UC tapped") })
-                ]
+                       ]
             )
         }
     }
@@ -134,19 +132,18 @@ struct HomeView: View {
                     .fontWeight(.bold)
                 
                 Spacer() // pushes the next item to the right edge
-
-                            // Right side: profile icon button
-                            Button(action: {
-                                print("Profile tapped!") // replace with navigation or sheet later
-                            }) {
-                                Image(systemName: "person.circle.fill") // SF Symbol
-                                    .resizable()
-                                    .frame(width: 40, height: 40)
-                                    .foregroundColor(.red)
-                            }
+                
+                // Right side: profile icon button
+                Button(action: {
+                    print("Profile tapped!") // replace with navigation or sheet later
+                }) {
+                    Image(systemName: "person.circle.fill") // SF Symbol
+                        .resizable()
+                        .frame(width: 40, height: 40)
+                        .foregroundColor(.red)
+                }
             }
-                        
-
+            
             Divider()
             
             Spacer().frame(height: 30)
@@ -156,24 +153,11 @@ struct HomeView: View {
             SearchBarView()
             
             MenuView()
-            
         }
         .padding()
-        Spacer()
     }
 }
 
-
-
-
-
 #Preview {
-    ContentView()
+    HomeView()
 }
-
-
-
-
-
-
-
