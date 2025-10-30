@@ -3,14 +3,14 @@
 **Campus Compass** is an iOS indoor–outdoor navigation app built for **Pacific University Oregon**.  
 It helps students, faculty, and visitors find their way around campus: from buildings to individual classrooms, with accessibility-aware routes and intuitive design.
 
-### 🎯 Features
+### Features
 
-- 🗺️ **Interactive Campus Map** – Displays all major university buildings and navigation paths.  
-- 🏛️ **Indoor Navigation** – Guides users to classrooms and specific rooms within buildings.  
-- ♿ **Accessibility-Aware Routing** – Optimizes routes based on slope, stairs, and accessibility constraints.  
-- 🔍 **Search Functionality** – Quickly find destinations across campus.  
+- **Interactive Campus Map** – Displays all major university buildings and navigation paths.  
+- **Indoor Navigation** – Guides users to classrooms and specific rooms within buildings.  
+- **Accessibility-Aware Routing** – Optimizes routes based on slope, stairs, and accessibility constraints.  
+- **Search Functionality** – Quickly find destinations across campus.  
 
-### 🧱 Architecture & Technologies
+### Architecture & Technologies
 | Layer | Description |
 |-------|--------------|
 | **Language** | Swift (SwiftUI) |
@@ -20,7 +20,7 @@ It helps students, faculty, and visitors find their way around campus: from buil
 | **Database** | TBA |
 | **Project Management** | Agile (Scrum – Jira Stories & Sprints) |
 
-### 🧩 Project Structure
+### Project Structure - In progress
 
 ```
 campus_compass/
@@ -34,7 +34,7 @@ campus_compass/
 ```
 
 
-### 🧪 Future Improvements
+### Future Improvements
 
 - Integration with **Apple Maps Indoor SDK**
 - Real-time **indoor positioning system (IPS)** integration  
