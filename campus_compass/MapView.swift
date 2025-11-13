@@ -6,21 +6,29 @@
 //
 
 import SwiftUI
+import MapKit
 
 struct MapView: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "map")
-                .imageScale(.large)
-            Text("Map goes here")
-                .font(.headline)
-            Text("Add MapKit later (Map)")
-                .foregroundStyle(.secondary)
-        }
-        .padding()
-    }
-}
+    @StateObject private var locationManager = LocationManager()
+    @State private var camera: MapCameraPosition = .automatic
+    @State private var hasCenteredOnUser = false   // <- NEW
 
-#Preview {
-    MapView()
+    var body: some View {
+        Map(position: $camera) {
+            UserAnnotation()
+        }
+        .onReceive(locationManager.$location) { location in
+            guard let location, !hasCenteredOnUser else { return }
+
+            hasCenteredOnUser = true   // only do this once
+
+            camera = .region(
+                MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
+            )
+        }
+        .ignoresSafeArea()
+    }
 }
