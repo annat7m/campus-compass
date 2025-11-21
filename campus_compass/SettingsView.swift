@@ -9,59 +9,6 @@
 
 import SwiftUI
 
-//struct HeaderView: View{
-//    var title: String
-//    var onBack: (() -> Void)?
-//    var onProfileTap: (() -> Void)?
-//    var body: some View{
-//        
-//        VStack(alignment: .leading, spacing: 8) {
-//            HStack{
-//                Text("Campus Compass")
-//                    .fontWeight(.bold)
-//                
-//                Spacer() // pushes the next item to the right edge
-//                
-//                // Right side: profile icon button
-//                Button(action: {
-//                    print("Profile tapped!") // replace with navigation or sheet later
-//                }) {
-//                    Image(systemName: "person.circle.fill") // SF Symbol
-//                        .resizable()
-//                        .frame(width: 40, height: 40)
-//                        .foregroundColor(.red)
-//                }
-//            }
-//            
-//            Divider()
-//            
-//            HStack {
-//                
-//                
-//                // Back Button
-//                Button(action: { onBack?() }) {
-//                    Image(systemName: "chevron.left")
-//                        .font(.system(size: 20, weight: .semibold))
-//                        .foregroundColor(.primary)
-//                        .padding(8)
-//                        .background(Color(.systemGray6))
-//                        .clipShape(RoundedRectangle(cornerRadius: 10))
-//                }
-//                
-//                // Title
-//                Text(title)
-//                    .font(.system(size: 24, weight: .bold))
-//                    .foregroundColor(.primary)
-//                    .padding(.leading, 8)
-//                
-//                
-//                //                    Spacer()
-//                
-//            }
-//            
-//        }
-//    }
-//}
 
     struct SettingsHeaderView: View {
         var title: String
@@ -120,8 +67,6 @@ import SwiftUI
             
         }
     }
-    
-    
     
     
     
@@ -204,9 +149,12 @@ import SwiftUI
     }
     
     
+
+/** What gets rendered to the screen*/
     struct SettingsView: View {
         
-//        SettingsHeaderView(title: "Settings", onBack: <#T##(() -> Void)?#>, onProfileTap: <#T##(() -> Void)?#>)
+        
+
         
         @State private var accessibilityToggles = [
             ToggleItem(title: "Accessibility Mode", subtitle: "Show only accessible routes and highlight accessibility features", systemImage: "figure.roll", isOn: false),
@@ -226,9 +174,30 @@ import SwiftUI
         ]
         
         var body: some View {
-            
-            
+
             ScrollView {
+                VStack(spacing: 0) {
+                    NavigationLink(destination: SignInView()) {
+                        HStack {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                                .foregroundColor(.red)
+                            Text("Log In / Sign Up")
+                                .font(.headline)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.gray)
+                        }
+                        .padding()
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                )
+                .padding(.horizontal)
+                
+                Divider()
                 VStack(spacing: 24) {
                     ToggleSectionView(title: "Accessibility", items: $accessibilityToggles)
                     ToggleSectionView(title: "Notifications", items: $notificationToggles)
@@ -242,10 +211,10 @@ import SwiftUI
     
     
     
-    
-    #Preview {
-        SettingsView()
-    }
+//    
+//    #Preview {
+//        SettingsView()
+//    }
     
     
     
