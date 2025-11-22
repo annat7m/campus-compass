@@ -16,8 +16,10 @@ struct ContentView: View {
             MapView()
                 .tabItem { Label("Map", systemImage: "map") }
 
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape") }
+            NavigationStack {
+                SettingsView()
+            }
+            .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .tint(.red)
     }
