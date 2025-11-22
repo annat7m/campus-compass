@@ -177,7 +177,7 @@ import SwiftUI
 
             ScrollView {
                 VStack(spacing: 0) {
-                    NavigationLink(destination: SignInView()) {
+                    NavigationLink(destination: SignUpView()) {
                         HStack {
                             Image(systemName: "person.crop.circle.badge.plus")
                                 .foregroundColor(.red)

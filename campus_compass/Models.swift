@@ -50,12 +50,16 @@ class Room {
 @Model
 class UserProfile {
     var name: String
+    var userName: String
+    var password: String
     var prefersAccessibility: Bool
     var recentLocations: [String]
     var favorites: [String]
     
     init(
         name: String,
+        userName: String,
+        password: String,
         prefersAccessibility: Bool = false,
         recentLocations: [String] = [],
         favorites: [String] = []
@@ -64,5 +68,7 @@ class UserProfile {
         self.prefersAccessibility = prefersAccessibility
         self.recentLocations = recentLocations
         self.favorites = favorites
+        self.userName = userName
+        self.password = password
     }
 }
