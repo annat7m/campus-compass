@@ -8,18 +8,23 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var selectedTab = 0
+
     var body: some View {
-        TabView {
+        TabView (selection: $selectedTab){
             HomeView()
                 .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(0)
 
             MapView()
                 .tabItem { Label("Map", systemImage: "map") }
+                .tag(1)
 
             NavigationStack {
-                SettingsView()
+                SettingsView(selectedTab: $selectedTab)
             }
             .tabItem { Label("Settings", systemImage: "gearshape") }
+            .tag(2)
         }
         .tint(.red)
     }

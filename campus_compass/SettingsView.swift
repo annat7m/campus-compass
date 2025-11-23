@@ -154,7 +154,7 @@ import SwiftUI
     struct SettingsView: View {
         
         
-
+        @Binding var selectedTab: Int
         
         @State private var accessibilityToggles = [
             ToggleItem(title: "Accessibility Mode", subtitle: "Show only accessible routes and highlight accessibility features", systemImage: "figure.roll", isOn: false),
@@ -177,7 +177,7 @@ import SwiftUI
 
             ScrollView {
                 VStack(spacing: 0) {
-                    NavigationLink(destination: SignUpView()) {
+                    NavigationLink(destination: SignUpView(selectedTab: $selectedTab)) {
                         HStack {
                             Image(systemName: "person.crop.circle.badge.plus")
                                 .foregroundColor(.red)
