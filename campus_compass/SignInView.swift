@@ -16,40 +16,80 @@ struct SignUpView: View {
     @State private var userExists = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Create Account")
-                .font(.largeTitle)
-            
-            TextField("Name", text: $name)
-                .textFieldStyle(.roundedBorder)
+        NavigationStack {
+            VStack(spacing: 20) {
+                Text("Create Account")
+                    .font(.largeTitle)
 
-            TextField("Username", text: $username)
-                .textFieldStyle(.roundedBorder)
+                TextField("Name", text: $name)
+                    .textFieldStyle(.roundedBorder)
 
-            SecureField("Password", text: $password)
-                .textFieldStyle(.roundedBorder)
+                TextField("Username", text: $username)
+                    .textFieldStyle(.roundedBorder)
 
-            Button("Sign Up") {
-                if getUser(username: username) != nil {
-                    userExists = true
-                } else {
-                    let newUser = UserProfile(
-                        name: name,
-                        userName: username,
-                        password: password
-                    )
-                    context.insert(newUser)
+                SecureField("Password", text: $password)
+                    .textFieldStyle(.roundedBorder)
+
+                Button("Sign Up") {
+                    print("Sign Up tapped")
+                    signUp()
+                }
+                .buttonStyle(.borderedProminent)
+                
+                // 👉 Already have an account?
+                HStack {
+                    Text("Already have an account?")
+                    
+                    NavigationLink(destination: LoginView()) {
+                        Text("Log In")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.blue)
+                    }
+                }
+                .padding(.top, 10)
+                
+                if userExists {
+                    Text("Username already exists")
+                        .foregroundColor(.red)
                 }
             }
+            .padding()
         }
-        .padding()
     }
 
-    func getUser(username: String) -> UserProfile? {
+    private func signUp() {
+        if getUser(username: username) != nil {
+            userExists = true
+            return
+        }
+
+        let newUser = UserProfile(
+            name: name,
+            userName: username,
+            password: password
+        )
+        
+        context.insert(newUser)
+        
+        do {
+            try context.save()
+        } catch {
+            print("❌ Save failed:", error)
+        }
+        
+        // validate
+        if let savedUser = getUser(username: username) {
+            print("✅ User saved:", savedUser.userName)
+        } else {
+            print("❌ User was NOT saved!")
+        }
+
+    }
+
+    private func getUser(username: String) -> UserProfile? {
         let descriptor = FetchDescriptor<UserProfile>(
             predicate: #Predicate { $0.userName == username }
         )
         return try? context.fetch(descriptor).first
     }
 }
-
