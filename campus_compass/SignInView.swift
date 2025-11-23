@@ -1,9 +1,3 @@
-//
-//  SignInView.swift
-//  campus_compass
-//
-//  Created by NiLyssa Walker on 11/12/25.
-//
 import SwiftUI
 import SwiftData
 
@@ -14,9 +8,19 @@ struct SignUpView: View {
     @State private var username = ""
     @State private var password = ""
     @State private var userExists = false
+    
+    @State private var showSuccessToast = false
+    @State private var navigateToHome = false
 
     var body: some View {
         NavigationStack {
+
+            // Navigation trigger
+            NavigationLink(destination: HomeView(),
+                           isActive: $navigateToHome) {
+                EmptyView()
+            }
+
             VStack(spacing: 20) {
                 Text("Create Account")
                     .font(.largeTitle)
@@ -31,39 +35,42 @@ struct SignUpView: View {
                     .textFieldStyle(.roundedBorder)
 
                 Button("Sign Up") {
-                    print("Sign Up tapped")
                     signUp()
                 }
                 .buttonStyle(.borderedProminent)
                 
-                // 👉 Already have an account?
                 HStack {
                     Text("Already have an account?")
-                    
                     NavigationLink(destination: LoginView()) {
                         Text("Log In")
                             .fontWeight(.semibold)
-                            .foregroundColor(.blue)
                     }
                 }
-                .padding(.top, 10)
-                
+
                 if userExists {
                     Text("Username already exists")
                         .foregroundColor(.red)
                 }
             }
             .padding()
+            .overlay(
+                Group {
+                    if showSuccessToast {
+                        Text("Account Created!")
+                            .padding()
+                            .background(.green.opacity(0.9))
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                            .shadow(radius: 5)
+                            .transition(.opacity)
+                            .animation(.easeInOut(duration: 0.3), value: showSuccessToast)
+                    }
+                }
+            )
         }
     }
 
     private func signUp() {
-        
-        print("Running signup()")
-            print("name:", name)
-            print("username:", username)
-            print("password:", password)
-        
         if getUser(username: username) != nil {
             userExists = true
             return
@@ -86,10 +93,18 @@ struct SignUpView: View {
         // validate
         if let savedUser = getUser(username: username) {
             print("✅ User saved:", savedUser.userName)
+
+            showSuccessToast = true
+
+            // hide toast + navigate after 3 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                showSuccessToast = false
+                navigateToHome = true
+            }
+
         } else {
             print("❌ User was NOT saved!")
         }
-
     }
 
     private func getUser(username: String) -> UserProfile? {

@@ -197,7 +197,7 @@ import SwiftUI
                 )
                 .padding(.horizontal)
                 
-                Divider()
+                
                 VStack(spacing: 24) {
                     ToggleSectionView(title: "Accessibility", items: $accessibilityToggles)
                     ToggleSectionView(title: "Notifications", items: $notificationToggles)
