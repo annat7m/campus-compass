@@ -6,10 +6,105 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct LoginView: View {
+    @Environment(\.modelContext) private var context
+    
+    @Binding var selectedTab: Int
+    var session: UserSession
+
+    @State private var username = ""
+    @State private var password = ""
+    
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var showSuccessToast = false
+    
     var body: some View {
-        Text("Login Screen")
-            .font(.largeTitle)
+        VStack(spacing: 20) {
+            
+            Text("Log In")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            
+            // Username field
+            TextField("Username", text: $username)
+                .textFieldStyle(.roundedBorder)
+            
+            // Password field
+            SecureField("Password", text: $password)
+                .textFieldStyle(.roundedBorder)
+            
+            // Log In button
+            Button("Sign In") {
+                login()
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top, 10)
+            
+            // Error message
+            if showError {
+                Text(errorMessage)
+                    .foregroundColor(.red)
+                    .padding(.top, 4)
+            }
+            
+            Spacer()
+            
+        }
+        .padding()
+        .overlay(
+            Group {
+                if showSuccessToast {
+                    Text("Welcome back!")
+                        .padding()
+                        .background(Color.green.opacity(0.9))
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                        .shadow(radius: 5)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.3), value: showSuccessToast)
+                }
+            }
+        )
+    }
+    
+    // MARK: - Login Logic
+    private func login() {
+        
+        guard let user = getUser(username: username) else {
+            showError = true
+            errorMessage = "Username not found"
+            return
+        }
+        
+        if user.password != password {
+            showError = true
+            errorMessage = "Incorrect password"
+            return
+        }
+        
+        // Credentials are valid
+        showError = false
+        session.currentUser = user
+        
+        // Show success toast
+        showSuccessToast = true
+        
+        // Navigate after 2 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            showSuccessToast = false
+            selectedTab = 0   // Switch to Home tab
+        }
+    }
+    
+    // MARK: - Fetch user
+    private func getUser(username: String) -> UserProfile? {
+        let descriptor = FetchDescriptor<UserProfile>(
+            predicate: #Predicate { $0.userName == username }
+        )
+        return try? context.fetch(descriptor).first
     }
 }
+

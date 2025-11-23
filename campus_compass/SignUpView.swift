@@ -4,16 +4,17 @@ import SwiftData
 struct SignUpView: View {
     @Environment(\.modelContext) private var context
     
-    // Binding so we can switch tabs (passed from SettingsView → ContentView)
+    // Passed from SettingsView → ContentView
     @Binding var selectedTab: Int
     var session: UserSession
-    // Form state
+    
+    // Form fields
     @State private var name = ""
     @State private var username = ""
     @State private var password = ""
     @State private var userExists = false
-    
-    // Toast + navigation state
+
+    // Toast visibility
     @State private var showSuccessToast = false
 
     var body: some View {
@@ -39,10 +40,10 @@ struct SignUpView: View {
             .buttonStyle(.borderedProminent)
             .padding(.top, 10)
 
-            // "Already have an account?"
+            // Already have account
             HStack {
                 Text("Already have an account?")
-                NavigationLink(destination: LoginView()) {
+                NavigationLink(destination: LoginView(selectedTab: $selectedTab, session: session)) {
                     Text("Log In")
                         .fontWeight(.semibold)
                         .foregroundColor(.blue)
@@ -78,45 +79,50 @@ struct SignUpView: View {
     // MARK: - Sign Up Logic
     private func signUp() {
         
-        // 1. Check if username already exists
+        // 1. Check if username exists
         if getUser(username: username) != nil {
             userExists = true
             return
         }
-        
-        // 2. Insert new user
+
+        // 2. Create new profile
         let newUser = UserProfile(
             name: name,
             userName: username,
             password: password
         )
-        
+
         context.insert(newUser)
-        
+
         do {
             try context.save()
         } catch {
             print("❌ Save failed:", error)
+            return
         }
         
         // 3. Validate save
-        if getUser(username: username) != nil {
-            print("✅ User saved:", username)
+        if let savedUser = getUser(username: username) {
+            print("✅ User saved:", savedUser.userName)
+
+            // Store in session
+            session.currentUser = savedUser
             userExists = false
-            
+
             // Show toast
             showSuccessToast = true
-            
-            // Hide toast + switch to Home tab after 3s
+
+            // Auto-dismiss toast + move to home tab
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 showSuccessToast = false
-                selectedTab = 0   // ← Go to HOME tab
+                selectedTab = 0   // Switch to Home tab
             }
+
         } else {
             print("❌ User was NOT saved!")
         }
     }
-    
+
     // MARK: - Helper
     private func getUser(username: String) -> UserProfile? {
         let descriptor = FetchDescriptor<UserProfile>(

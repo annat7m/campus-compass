@@ -126,33 +126,43 @@ struct ActionButton: View {
 
 struct HomeView: View {
     var session: UserSession
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack{
+            HStack {
                 Text("Campus Compass")
                     .fontWeight(.bold)
-                
-                Spacer() // pushes the next item to the right edge
-                
-                // Right side: profile icon button
-                Button(action: {
-                    print("Profile tapped!") // replace with navigation or sheet later
-                }) {
-                    Image(systemName: "person.circle.fill") // SF Symbol
+
+                Spacer()
+
+                Button(action: {}) {
+                    Image(systemName: "person.circle.fill")
                         .resizable()
                         .frame(width: 40, height: 40)
                         .foregroundColor(.red)
                 }
             }
-            
+
             Divider()
-            
             Spacer().frame(height: 30)
-            
-            Text("Campus Compass").font(.largeTitle,) .frame(maxWidth: .infinity, alignment: .center)
-            Text("Navigate Pacific University with ease").frame(maxWidth: .infinity, alignment: .center).foregroundColor(.gray)
+
+            // 👇 NEW — Welcome Message
+            if let user = session.currentUser {
+                Text("Welcome, \(user.name)!")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal)
+            }
+
+            Text("Campus Compass")
+                .font(.largeTitle)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            Text("Navigate Pacific University with ease")
+                .foregroundColor(.gray)
+                .frame(maxWidth: .infinity, alignment: .center)
+
             SearchBarView()
-            
             MenuView()
         }
         .padding()
