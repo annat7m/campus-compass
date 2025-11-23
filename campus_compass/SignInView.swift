@@ -58,6 +58,12 @@ struct SignUpView: View {
     }
 
     private func signUp() {
+        
+        print("Running signup()")
+            print("name:", name)
+            print("username:", username)
+            print("password:", password)
+        
         if getUser(username: username) != nil {
             userExists = true
             return
