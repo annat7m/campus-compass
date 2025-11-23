@@ -155,7 +155,7 @@ import SwiftUI
         
         
         @Binding var selectedTab: Int
-        
+        var session: UserSession
         @State private var accessibilityToggles = [
             ToggleItem(title: "Accessibility Mode", subtitle: "Show only accessible routes and highlight accessibility features", systemImage: "figure.roll", isOn: false),
             ToggleItem(title: "Avoid Stairs", subtitle: "Prefer routes with ramps and elevators", systemImage: "stairs", isOn: false),
@@ -177,7 +177,7 @@ import SwiftUI
 
             ScrollView {
                 VStack(spacing: 0) {
-                    NavigationLink(destination: SignUpView(selectedTab: $selectedTab)) {
+                    NavigationLink(destination: SignUpView(selectedTab: $selectedTab, session: session)) {
                         HStack {
                             Image(systemName: "person.crop.circle.badge.plus")
                                 .foregroundColor(.red)

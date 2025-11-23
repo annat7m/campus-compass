@@ -6,7 +6,7 @@ struct SignUpView: View {
     
     // Binding so we can switch tabs (passed from SettingsView → ContentView)
     @Binding var selectedTab: Int
-    
+    var session: UserSession
     // Form state
     @State private var name = ""
     @State private var username = ""

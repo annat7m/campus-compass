@@ -9,10 +9,11 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var selectedTab = 0
+    @State private var session = UserSession()
 
     var body: some View {
-        TabView (selection: $selectedTab){
-            HomeView()
+        TabView(selection: $selectedTab) {
+            HomeView(session: session)
                 .tabItem { Label("Home", systemImage: "house.fill") }
                 .tag(0)
 
@@ -21,7 +22,7 @@ struct ContentView: View {
                 .tag(1)
 
             NavigationStack {
-                SettingsView(selectedTab: $selectedTab)
+                SettingsView(selectedTab: $selectedTab, session: session)
             }
             .tabItem { Label("Settings", systemImage: "gearshape") }
             .tag(2)
@@ -30,6 +31,3 @@ struct ContentView: View {
     }
 }
 
-#Preview {
-    ContentView()
-}

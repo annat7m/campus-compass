@@ -125,6 +125,7 @@ struct ActionButton: View {
 
 
 struct HomeView: View {
+    var session: UserSession
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack{
@@ -156,8 +157,4 @@ struct HomeView: View {
         }
         .padding()
     }
-}
-
-#Preview {
-    HomeView()
 }
