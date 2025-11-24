@@ -178,48 +178,76 @@ import SwiftUI
                 ScrollView {
                     VStack(spacing: 24) {
                         
-                        // MARK: - AUTHENTICATION SECTION
-                        VStack(spacing: 0) {
-                            // Log In
-                            NavigationLink {
-                                LoginView(selectedTab: $selectedTab, session: session,settingsPath: $settingsPath)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "person.circle")
-                                        .foregroundColor(.red)
-                                    Text("Log In")
-                                        .font(.headline)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.gray)
-                                }
-                                .padding()
-                            }
+                        // MARK: - AUTH SECTION
+                        if session.currentUser == nil {
                             
-                            Divider()
-                            
-                            // Sign Up
-                            NavigationLink {
-                                SignUpView(selectedTab: $selectedTab, session: session, settingsPath: $settingsPath)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "person.crop.circle.badge.plus")
-                                        .foregroundColor(.red)
-                                    Text("Sign Up")
-                                        .font(.headline)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.gray)
+                            // User is logged out → show Log In + Sign Up
+                            VStack(spacing: 0) {
+                                
+                                NavigationLink {
+                                    LoginView(selectedTab: $selectedTab, session: session, settingsPath: $settingsPath)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "person.circle")
+                                            .foregroundColor(.red)
+                                        Text("Log In")
+                                            .font(.headline)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(.gray)
+                                    }
+                                    .padding()
                                 }
-                                .padding()
+                                
+                                Divider()
+                                
+                                NavigationLink {
+                                    SignUpView(selectedTab: $selectedTab, session: session, settingsPath: $settingsPath)
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "person.crop.circle.badge.plus")
+                                            .foregroundColor(.red)
+                                        Text("Sign Up")
+                                            .font(.headline)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(.gray)
+                                    }
+                                    .padding()
+                                }
                             }
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(.systemBackground))
+                                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                            )
+                            .padding(.horizontal)
+                            
+                        } else {
+                            
+                            // User IS logged in → show Log Out only
+                            VStack(spacing: 0) {
+                                Button(role: .destructive) {
+                                    logout()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                                            .foregroundColor(.red)
+                                        Text("Log Out")
+                                            .foregroundColor(.red)
+                                            .font(.headline)
+                                        Spacer()
+                                    }
+                                    .padding()
+                                }
+                            }
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color(.systemBackground))
+                                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                            )
+                            .padding(.horizontal)
                         }
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(.systemBackground))
-                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                        )
-                        .padding(.horizontal)
 
                         // MARK: - SETTINGS SECTIONS
                         ToggleSectionView(title: "Accessibility", items: $accessibilityToggles)
@@ -231,6 +259,13 @@ import SwiftUI
                 }
                 .background(Color(.systemGroupedBackground))
             }
+        
+        private func logout() {
+            session.currentUser = nil      // Clears logged-in user
+            selectedTab = 2                // Stay on Settings tab (optional)
+            print("User logged out")
+        }
+
     }
     
     
