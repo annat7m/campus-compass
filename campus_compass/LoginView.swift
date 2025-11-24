@@ -10,9 +10,11 @@ import SwiftData
 
 struct LoginView: View {
     @Environment(\.modelContext) private var context
-    
+    @Environment(\.dismiss) var dismiss
+
     @Binding var selectedTab: Int
     var session: UserSession
+    @Binding var settingsPath: NavigationPath   // NEW
 
     @State private var username = ""
     @State private var password = ""
@@ -113,6 +115,8 @@ struct LoginView: View {
         // Navigate after 2 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             showSuccessToast = false
+            settingsPath = NavigationPath()
+            dismiss() // pops Login/Signup off the stack
             selectedTab = 0   // Switch to Home tab
         }
     }

@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedTab = 0
     @State private var session = UserSession()
+    @State private var settingsPath = NavigationPath()
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -21,8 +22,8 @@ struct ContentView: View {
                 .tabItem { Label("Map", systemImage: "map") }
                 .tag(1)
 
-            NavigationStack {
-                SettingsView(selectedTab: $selectedTab, session: session)
+            NavigationStack(path: $settingsPath) {
+                SettingsView(selectedTab: $selectedTab, session: session, settingsPath: $settingsPath)
             }
             .tabItem { Label("Settings", systemImage: "gearshape") }
             .tag(2)

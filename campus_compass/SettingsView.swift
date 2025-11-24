@@ -156,6 +156,7 @@ import SwiftUI
         
         @Binding var selectedTab: Int
         var session: UserSession
+        @Binding var settingsPath: NavigationPath
         @State private var accessibilityToggles = [
             ToggleItem(title: "Accessibility Mode", subtitle: "Show only accessible routes and highlight accessibility features", systemImage: "figure.roll", isOn: false),
             ToggleItem(title: "Avoid Stairs", subtitle: "Prefer routes with ramps and elevators", systemImage: "stairs", isOn: false),
@@ -174,48 +175,66 @@ import SwiftUI
         ]
         
         var body: some View {
-
-            ScrollView {
-                VStack(spacing: 0) {
-                    NavigationLink(destination: SignUpView(selectedTab: $selectedTab, session: session)) {
-                        HStack {
-                            Image(systemName: "person.crop.circle.badge.plus")
-                                .foregroundColor(.red)
-                            Text("Log In / Sign Up")
-                                .font(.headline)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundColor(.gray)
+                ScrollView {
+                    VStack(spacing: 24) {
+                        
+                        // MARK: - AUTHENTICATION SECTION
+                        VStack(spacing: 0) {
+                            // Log In
+                            NavigationLink {
+                                LoginView(selectedTab: $selectedTab, session: session,settingsPath: $settingsPath)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "person.circle")
+                                        .foregroundColor(.red)
+                                    Text("Log In")
+                                        .font(.headline)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding()
+                            }
+                            
+                            Divider()
+                            
+                            // Sign Up
+                            NavigationLink {
+                                SignUpView(selectedTab: $selectedTab, session: session, settingsPath: $settingsPath)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "person.crop.circle.badge.plus")
+                                        .foregroundColor(.red)
+                                    Text("Sign Up")
+                                        .font(.headline)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding()
+                            }
                         }
-                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color(.systemBackground))
+                                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                        )
+                        .padding(.horizontal)
+
+                        // MARK: - SETTINGS SECTIONS
+                        ToggleSectionView(title: "Accessibility", items: $accessibilityToggles)
+                        ToggleSectionView(title: "Notifications", items: $notificationToggles)
+                        ToggleSectionView(title: "Preferences", items: $navigationPreferences)
+                        
                     }
+                    .padding(.top)
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                )
-                .padding(.horizontal)
-                
-                
-                VStack(spacing: 24) {
-                    ToggleSectionView(title: "Accessibility", items: $accessibilityToggles)
-                    ToggleSectionView(title: "Notifications", items: $notificationToggles)
-                    ToggleSectionView(title: "Preferences", items: $navigationPreferences)
-                }
-                .padding(.vertical)
+                .background(Color(.systemGroupedBackground))
             }
-            .background(Color(.systemGroupedBackground))
-        }
     }
     
     
-    
-//    
-//    #Preview {
-//        SettingsView()
-//    }
-    
+
     
     
     

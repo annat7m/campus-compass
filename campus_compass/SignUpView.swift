@@ -3,11 +3,13 @@ import SwiftData
 
 struct SignUpView: View {
     @Environment(\.modelContext) private var context
-    
+    @Environment(\.dismiss) var dismiss
+
     // Passed from SettingsView → ContentView
     @Binding var selectedTab: Int
     var session: UserSession
-    
+    @Binding var settingsPath: NavigationPath   // NEW
+
     // Form fields
     @State private var name = ""
     @State private var username = ""
@@ -40,16 +42,7 @@ struct SignUpView: View {
             .buttonStyle(.borderedProminent)
             .padding(.top, 10)
 
-            // Already have account
-            HStack {
-                Text("Already have an account?")
-                NavigationLink(destination: LoginView(selectedTab: $selectedTab, session: session)) {
-                    Text("Log In")
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
-                }
-            }
-            .padding(.top, 10)
+        
 
             if userExists {
                 Text("Username already exists")
@@ -115,7 +108,10 @@ struct SignUpView: View {
             // Auto-dismiss toast + move to home tab
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 showSuccessToast = false
-                selectedTab = 0   // Switch to Home tab
+                settingsPath = NavigationPath()   // clears Settings view stack
+                dismiss()                         // pops Login/Signup off the stack
+                selectedTab = 0                   // go to Home tab
+
             }
 
         } else {
