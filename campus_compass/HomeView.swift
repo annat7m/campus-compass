@@ -23,7 +23,8 @@ struct SearchBarView: View {
 
 struct MenuSectionView: View {
     var title: String
-    var items: [MenuItem]
+    var items: [MenuItem]?
+    var message: String? = nil   // NEW (optional)
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -32,12 +33,22 @@ struct MenuSectionView: View {
                 .padding(.horizontal)
             
             VStack(spacing: 12) {
-                ForEach(items) { item in
-                    ActionButton(
-                        title: item.title,
-                        systemImage: item.systemImage,
-                        action: item.action
-                    )
+
+                if let items = items, !items.isEmpty {
+                    // Display the items
+                    ForEach(items) { item in
+                        ActionButton(
+                            title: item.title,
+                            systemImage: item.systemImage,
+                            action: item.action
+                        )
+                    }
+                } else {
+                    // Display placeholder message
+                    Text(message ?? "No items")
+                        .foregroundColor(.gray)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding()
                 }
             }
             .padding(.horizontal)
@@ -60,6 +71,8 @@ struct MenuItem: Identifiable {
 }
 
 struct MenuView: View {
+    var session: UserSession
+
     var body: some View {
         ScrollView {
             MenuSectionView(
@@ -85,12 +98,44 @@ struct MenuView: View {
                        ]
             )
             
-            MenuSectionView(
-                title: "Favorites",
-                items: [MenuItem(title: "Strain Science Center", systemImage: "building", action:{print("Strain tapped") }),
-                        MenuItem(title: "University Center", systemImage: "building", action:{print("UC tapped") })
-                       ]
-            )
+            // FAVORITES SECTION
+            if let user = session.currentUser {
+                
+                // User is logged in
+                if user.favorites.isEmpty {
+                    
+                    // No favorites saved
+                    MenuSectionView(
+                        title: "Favorites",
+                        items: nil,
+                        message: "No buildings saved"
+                    )
+                    
+                } else {
+                    
+                    // Convert favorites (strings) into MenuItem buttons
+                    MenuSectionView(
+                        title: "Favorites",
+                        items: user.favorites.map { fav in
+                            MenuItem(
+                                title: fav,
+                                systemImage: "building",
+                                action: { print("Tapped \(fav)") }
+                            )
+                        }
+                    )
+                }
+                
+            } else {
+                
+                // No user logged in
+                MenuSectionView(
+                    title: "Favorites",
+                    items: nil,
+                    message: "Log in to see your favorite locations!"
+                )
+            }
+
         }
     }
 }
@@ -146,14 +191,6 @@ struct HomeView: View {
             Divider()
             Spacer().frame(height: 30)
 
-            // 👇 NEW — Welcome Message
-            if let user = session.currentUser {
-                Text("Welcome, \(user.name)!")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal)
-            }
-
             Text("Campus Compass")
                 .font(.largeTitle)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -161,9 +198,18 @@ struct HomeView: View {
             Text("Navigate Pacific University with ease")
                 .foregroundColor(.gray)
                 .frame(maxWidth: .infinity, alignment: .center)
-
+            
+            Spacer();
+            // 👇 NEW — Welcome Message
+            if let user = session.currentUser {
+                Text("Welcome, \(user.name)!")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal)
+            }
             SearchBarView()
-            MenuView()
+            MenuView(session:session)
         }
         .padding()
     }
