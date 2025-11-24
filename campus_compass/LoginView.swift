@@ -89,6 +89,24 @@ struct LoginView: View {
         showError = false
         session.currentUser = user
         
+        // ⭐ ADD TEST FAVORITES HERE ⭐
+            if user.favorites.isEmpty {
+                user.favorites.append(contentsOf: [
+                    "Strain Science Center",
+                    "Library",
+                    "Taylor Auditorium"
+                ])
+                
+                // Don't forget to save changes!
+                do {
+                    try context.save()
+                } catch {
+                    print("❌ Save failed:", error)
+                    return
+                }
+                
+            }
+            
         // Show success toast
         showSuccessToast = true
         
