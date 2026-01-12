@@ -1,4 +1,6 @@
-# Xcode user state (DO NOT COMMIT)
+# Xcode user state
 **/xcuserdata/
 **/*.xcuserstate
+
+.DS_Store
 
