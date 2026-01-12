@@ -2,11 +2,32 @@
 //  HomeView.swift
 //  Campus Compass
 //
-//  Created by Anna Tymoshenko on 10/10/25.
+//  Purpose:
+//  Home/dashboard screen components for the Campus Compass app. This file contains
+//  reusable menu UI building blocks (sections + action buttons) and the main HomeView.
+//
+//  Key responsibilities:
+//  - Display app branding and an entry point to navigation features.
+//  - Show menu sections like Quick Actions, Popular Destinations, Recent Locations.
+//  - Conditionally show Favorites based on the current logged-in user in UserSession.
+//
+//  Dependencies:
+//  - SwiftUI
+//  - UserSession (provides currentUser and favorites)
+//  - User model is expected to include: name (String) and favorites ([String]).
+//
+//  Notes:
+//  - Actions are currently placeholders (print statements). Replace with NavigationLinks
+//    or routing when destination screens are implemented.
+//  - SearchBarView is currently non-functional (TextField uses a constant binding).
 //
 
 import SwiftUI
 
+/// A simple search input UI used on the Home screen.
+///
+/// - Note: Currently uses a constant binding, so typing will not persist.
+///   Convert to a `@Binding var searchText: String` when wiring up search.
 struct SearchBarView: View {
     @State private var searchText: String = ""
     var body: some View {
@@ -21,6 +42,15 @@ struct SearchBarView: View {
     }
 }
 
+/// A reusable section container for menu-like content on the Home screen.
+///
+/// Displays a title and a vertical list of `ActionButton`s when `items` is provided.
+/// If `items` is nil or empty, a placeholder message is shown instead.
+///
+/// - Parameters:
+///   - title: The section header text.
+///   - items: Optional menu items to display as buttons.
+///   - message: Optional placeholder text when there are no items.
 struct MenuSectionView: View {
     var title: String
     var items: [MenuItem]?
@@ -63,6 +93,11 @@ struct MenuSectionView: View {
     }
 }
 
+
+/// A lightweight model representing a tappable row in a menu section.
+///
+/// Each item has a title, SF Symbol name, and an action closure.
+/// `id` is generated automatically for SwiftUI diffing.
 struct MenuItem: Identifiable {
     let id = UUID()
     let title: String
@@ -70,6 +105,13 @@ struct MenuItem: Identifiable {
     let action: () -> Void
 }
 
+
+/// The scrollable collection of menu sections shown on the Home screen.
+///
+/// Uses `UserSession` to determine whether to display Favorites:
+/// - If no user is logged in: show a message prompting login.
+/// - If user logged in but favorites empty: show a "No buildings saved" message.
+/// - Otherwise: map favorites strings into `MenuItem` buttons.
 struct MenuView: View {
     var session: UserSession
 
@@ -99,6 +141,7 @@ struct MenuView: View {
             )
             
             // FAVORITES SECTION
+            // Favorites are driven by the user's session state.
             if let user = session.currentUser {
                 
                 // User is logged in
@@ -142,7 +185,9 @@ struct MenuView: View {
 
 
 
-/// A reusable button component for your app's menu-style lists.
+/// A reusable button style for menu rows.
+///
+/// Uses an SF Symbol on the left, the title text, and a subtle rounded border.
 struct ActionButton: View {
     var title: String
     var systemImage: String
@@ -168,7 +213,13 @@ struct ActionButton: View {
 }
 
 
-
+/// The main Home screen for Campus Compass.
+///
+/// Displays:
+/// - Header row with app title and profile icon (placeholder).
+/// - App name + tagline.
+/// - Optional welcome message when a user is logged in.
+/// - Search bar and the menu content.
 struct HomeView: View {
     var session: UserSession
 
