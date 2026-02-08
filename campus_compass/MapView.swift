@@ -34,8 +34,13 @@ struct MapView: View {
     let Carnegie = CLLocationCoordinate2D(latitude: 45.52021, longitude: -123.11034)
     let Brown = CLLocationCoordinate2D(latitude: 45.51990, longitude: -123.11026)
     let Drake = CLLocationCoordinate2D(latitude: 45.52165, longitude: -123.11134)
-    
-    
+    let CPS = CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.11129)
+    let Admissions = CLLocationCoordinate2DMake(45.52243, -123.11142)
+    let Chapman = CLLocationCoordinate2DMake(45.52262, -123.11151)
+    let WLH = CLLocationCoordinate2DMake(45.52291, -123.11127)
+    let ServiceCenter = CLLocationCoordinate2DMake(45.52114, -123.11117)
+    let OutdoorPursuits = CLLocationCoordinate2DMake(45.52110, -123.11129)
+    let OldCollege = CLLocationCoordinate2DMake(45.52040, -123.11076)
     
     
     var body: some View {
@@ -46,6 +51,30 @@ struct MapView: View {
             Marker("Strain Science Center", coordinate: Strain)
             Marker("Aucoin Hall", coordinate: Aucoin)
             Marker("Murdock Hall", coordinate: Murdock)
+            Marker("McGill", coordinate: MgGill)
+            Marker("Berglund", coordinate: Berglund)
+            Marker("Cascade", coordinate: Cascade)
+            Marker("Price", coordinate: Price)
+            Marker("Taylor-Meade", coordinate: TaylorMeade)
+            Marker("Clark", coordinate: Clark)
+            Marker("Bookstore", coordinate: Bookstore)
+            Marker("Library", coordinate: Library)
+            Marker("Warner", coordinate: Warner)
+            Marker("Marsh", coordinate: Marsh)
+            Marker("Mac", coordinate: Mac)
+            Marker("Walter", coordinate: Walter)
+            Marker("Walter Annex", coordinate: WalterAnnex)
+            Marker("Bates", coordinate: Bates)
+            Marker("Carnegie", coordinate: Carnegie)
+            Marker("Brown", coordinate: Brown)
+            Marker("Drake", coordinate: Drake)
+            Marker("CPS", coordinate: CPS)
+            Marker("Admissions", coordinate: Admissions)
+            Marker("Chapman", coordinate: Chapman)
+            Marker("WLH", coordinate: WLH)
+            Marker("Service Center", coordinate: ServiceCenter)
+            Marker("Outdoor Pursuits", coordinate: OutdoorPursuits)
+            Marker("Old College", coordinate: OldCollege)
         }
         .onReceive(locationManager.$location) { location in
             guard let location, !hasCenteredOnUser else { return }
