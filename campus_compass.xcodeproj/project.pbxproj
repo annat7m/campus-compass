@@ -6,7 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9F5A882C2F39D0B700816EE6 /* IndoorGeoJSON in Resources */ = {isa = PBXBuildFile; fileRef = 9F5A882B2F39D0B700816EE6 /* IndoorGeoJSON */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
+		9F5A882B2F39D0B700816EE6 /* IndoorGeoJSON */ = {isa = PBXFileReference; lastKnownFileType = folder; path = IndoorGeoJSON; sourceTree = "<group>"; };
 		9FECF5A22E946D75007F632F /* campus_compass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = campus_compass.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -32,6 +37,7 @@
 		9FECF5992E946D75007F632F = {
 			isa = PBXGroup;
 			children = (
+				9F5A882B2F39D0B700816EE6 /* IndoorGeoJSON */,
 				9FECF5A42E946D75007F632F /* campus_compass */,
 				9FECF5A32E946D75007F632F /* Products */,
 			);
@@ -109,6 +115,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9F5A882C2F39D0B700816EE6 /* IndoorGeoJSON in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
