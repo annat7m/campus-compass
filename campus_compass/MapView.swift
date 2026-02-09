@@ -13,6 +13,8 @@ struct MapView: View {
     @State private var camera: MapCameraPosition = .automatic
     @State private var hasCenteredOnUser = false   // <- NEW
     
+    @Namespace private var mapScope
+    
     let UCLoc = CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)
     let Strain = CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.10723)
     let Aucoin = CLLocationCoordinate2D(latitude: 45.52142, longitude: -123.10982)
@@ -44,50 +46,52 @@ struct MapView: View {
     
     
     var body: some View {
-        Map(position: $camera) {
+        Map(position: $camera, scope: mapScope) {
             UserAnnotation()
             
             Marker("University Center", coordinate: UCLoc)
             Marker("Strain Science Center", coordinate: Strain)
             Marker("Aucoin Hall", coordinate: Aucoin)
             Marker("Murdock Hall", coordinate: Murdock)
-            Marker("McGill", coordinate: MgGill)
-            Marker("Berglund", coordinate: Berglund)
-            Marker("Cascade", coordinate: Cascade)
-            Marker("Price", coordinate: Price)
-            Marker("Taylor-Meade", coordinate: TaylorMeade)
-            Marker("Clark", coordinate: Clark)
-            Marker("Bookstore", coordinate: Bookstore)
-            Marker("Library", coordinate: Library)
-            Marker("Warner", coordinate: Warner)
-            Marker("Marsh", coordinate: Marsh)
-            Marker("Mac", coordinate: Mac)
-            Marker("Walter", coordinate: Walter)
+            Marker("McGill Auditorium", coordinate: MgGill)
+            Marker("Berglund Hall", coordinate: Berglund)
+            Marker("Cascade Hall", coordinate: Cascade)
+            Marker("Price Hall", coordinate: Price)
+            Marker("Taylor-Meade Performing Arts", coordinate: TaylorMeade)
+            Marker("Clark Hall", coordinate: Clark)
+            Marker("Pacific Bookstore", coordinate: Bookstore)
+            Marker("Tran Library", coordinate: Library)
+            Marker("Warner Hall", coordinate: Warner)
+            Marker("Marsh Hall", coordinate: Marsh)
+            Marker("McCormick Hall", coordinate: Mac)
+            Marker("Walter Hall", coordinate: Walter)
             Marker("Walter Annex", coordinate: WalterAnnex)
-            Marker("Bates", coordinate: Bates)
-            Marker("Carnegie", coordinate: Carnegie)
-            Marker("Brown", coordinate: Brown)
-            Marker("Drake", coordinate: Drake)
-            Marker("CPS", coordinate: CPS)
-            Marker("Admissions", coordinate: Admissions)
-            Marker("Chapman", coordinate: Chapman)
-            Marker("WLH", coordinate: WLH)
+            Marker("Bates House", coordinate: Bates)
+            Marker("Carnegie Hall", coordinate: Carnegie)
+            Marker("Brown Hall", coordinate: Brown)
+            Marker("Drake House", coordinate: Drake)
+            Marker("Campus Public Saftey", coordinate: CPS)
+            Marker("Admissions Office", coordinate: Admissions)
+            Marker("Chapman Hall", coordinate: Chapman)
+            Marker("World Language House", coordinate: WLH)
             Marker("Service Center", coordinate: ServiceCenter)
             Marker("Outdoor Pursuits", coordinate: OutdoorPursuits)
-            Marker("Old College", coordinate: OldCollege)
+            Marker("Old College Hall", coordinate: OldCollege)
+        }.mapControls{
+            MapUserLocationButton(scope: mapScope)
+            MapCompass(scope: mapScope)
+            MapScaleView(scope: mapScope)
         }
-        .onReceive(locationManager.$location) { location in
-            guard let location, !hasCenteredOnUser else { return }
-
-            hasCenteredOnUser = true   // only do this once
-
-            camera = .region(
-                MKCoordinateRegion(
-                    center: location.coordinate,
-                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                )
-            )
-        }
-        .ignoresSafeArea()
+//        .onReceive(locationManager.$location) { location in
+//            guard let location, !hasCenteredOnUser else { return }
+//
+//            hasCenteredOnUser = true   // only do this once
+//            camera = .region(
+//                MKCoordinateRegion(
+//                    center: location.coordinate,
+//                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+//                )
+//            )
+//        }.ignoresSafeArea()
     }
 }
