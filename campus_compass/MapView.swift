@@ -8,13 +8,36 @@
 import SwiftUI
 import MapKit
 
+struct CampusLocation: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let description: String
+    let latitude: Double
+        let longitude: Double
+
+        var coordinate: CLLocationCoordinate2D {
+            .init(latitude: latitude, longitude: longitude)
+        }
+}
+
 struct MapView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var camera: MapCameraPosition = .automatic
     @State private var hasCenteredOnUser = false   // <- NEW
-    
+    @State private var selectedLocation: CampusLocation?
     @Namespace private var mapScope
     
+    let campusLocations: [CampusLocation] = [
+        .init(name: "University Center",
+              description: "Central hub for student services and campus activities.",
+              latitude: 45.52207, longitude: -123.10894),
+
+        .init(name: "Strain Science Center",
+              description: "Academic building with classrooms and labs.",
+              latitude: 45.52180, longitude: -123.10723),
+    ]
+
+
     let UCLoc = CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)
     let Strain = CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.10723)
     let Aucoin = CLLocationCoordinate2D(latitude: 45.52142, longitude: -123.10982)
@@ -46,43 +69,56 @@ struct MapView: View {
     
     
     var body: some View {
-        Map(position: $camera, scope: mapScope) {
+        Map(position: $camera,selection: $selectedLocation, scope: mapScope) {
             UserAnnotation()
             
-            Marker("University Center", coordinate: UCLoc)
-            Marker("Strain Science Center", coordinate: Strain)
-            Marker("Aucoin Hall", coordinate: Aucoin)
-            Marker("Murdock Hall", coordinate: Murdock)
-            Marker("McGill Auditorium", coordinate: MgGill)
-            Marker("Berglund Hall", coordinate: Berglund)
-            Marker("Cascade Hall", coordinate: Cascade)
-            Marker("Price Hall", coordinate: Price)
-            Marker("Taylor-Meade Performing Arts", coordinate: TaylorMeade)
-            Marker("Clark Hall", coordinate: Clark)
-            Marker("Pacific Bookstore", coordinate: Bookstore)
-            Marker("Tran Library", coordinate: Library)
-            Marker("Warner Hall", coordinate: Warner)
-            Marker("Marsh Hall", coordinate: Marsh)
-            Marker("McCormick Hall", coordinate: Mac)
-            Marker("Walter Hall", coordinate: Walter)
-            Marker("Walter Annex", coordinate: WalterAnnex)
-            Marker("Bates House", coordinate: Bates)
-            Marker("Carnegie Hall", coordinate: Carnegie)
-            Marker("Brown Hall", coordinate: Brown)
-            Marker("Drake House", coordinate: Drake)
-            Marker("Campus Public Saftey", coordinate: CPS)
-            Marker("Admissions Office", coordinate: Admissions)
-            Marker("Chapman Hall", coordinate: Chapman)
-            Marker("World Language House", coordinate: WLH)
-            Marker("Service Center", coordinate: ServiceCenter)
-            Marker("Outdoor Pursuits", coordinate: OutdoorPursuits)
-            Marker("Old College Hall", coordinate: OldCollege)
+            ForEach(campusLocations) { location in
+                    Marker(location.name, coordinate: location.coordinate)
+                        .tag(location)
+                }
+            
+//            Marker("University Center", coordinate: UCLoc)
+//            Marker("Strain Science Center", coordinate: Strain)
+//            Marker("Aucoin Hall", coordinate: Aucoin)
+//            Marker("Murdock Hall", coordinate: Murdock)
+//            Marker("McGill Auditorium", coordinate: MgGill)
+//            Marker("Berglund Hall", coordinate: Berglund)
+//            Marker("Cascade Hall", coordinate: Cascade)
+//            Marker("Price Hall", coordinate: Price)
+//            Marker("Taylor-Meade Performing Arts", coordinate: TaylorMeade)
+//            Marker("Clark Hall", coordinate: Clark)
+//            Marker("Pacific Bookstore", coordinate: Bookstore)
+//            Marker("Tran Library", coordinate: Library)
+//            Marker("Warner Hall", coordinate: Warner)
+//            Marker("Marsh Hall", coordinate: Marsh)
+//            Marker("McCormick Hall", coordinate: Mac)
+//            Marker("Walter Hall", coordinate: Walter)
+//            Marker("Walter Annex", coordinate: WalterAnnex)
+//            Marker("Bates House", coordinate: Bates)
+//            Marker("Carnegie Hall", coordinate: Carnegie)
+//            Marker("Brown Hall", coordinate: Brown)
+//            Marker("Drake House", coordinate: Drake)
+//            Marker("Campus Public Saftey", coordinate: CPS)
+//            Marker("Admissions Office", coordinate: Admissions)
+//            Marker("Chapman Hall", coordinate: Chapman)
+//            Marker("World Language House", coordinate: WLH)
+//            Marker("Service Center", coordinate: ServiceCenter)
+//            Marker("Outdoor Pursuits", coordinate: OutdoorPursuits)
+//            Marker("Old College Hall", coordinate: OldCollege)
         }.onAppear {
             locationManager.requestPermissionAndStart()
         }.mapControls{
             MapUserLocationButton(scope: mapScope)
             MapCompass(scope: mapScope)
             MapScaleView(scope: mapScope)
+        }.sheet(item: $selectedLocation) { location in
+            VStack(alignment: .leading, spacing: 12) {
+                Text(location.name).font(.title2).bold()
+                Text(location.description)
+                Spacer()
+            }
+            .padding()
+            .presentationDetents([.medium])
         }
 //        .onReceive(locationManager.$location) { location in
 //            guard let location, !hasCenteredOnUser else { return }
