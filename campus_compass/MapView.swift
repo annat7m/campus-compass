@@ -77,6 +77,8 @@ struct MapView: View {
             Marker("Service Center", coordinate: ServiceCenter)
             Marker("Outdoor Pursuits", coordinate: OutdoorPursuits)
             Marker("Old College Hall", coordinate: OldCollege)
+        }.onAppear {
+            locationManager.requestPermissionAndStart()
         }.mapControls{
             MapUserLocationButton(scope: mapScope)
             MapCompass(scope: mapScope)
