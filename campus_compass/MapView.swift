@@ -27,6 +27,14 @@ struct LocationPreviewSheet: View {
                 }
             }
 
+            Spacer()
+
+            Button {
+                openDirections(to: location)
+            } label: {
+                Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+            }.buttonStyle(.borderedProminent)
+            
             Divider()
 
             // Details (success criteria)
@@ -90,15 +98,13 @@ private struct InfoRow: View {
 }
 
 
+import MapKit
 import CoreLocation
 
 private func openDirections(to location: CampusLocation) {
-    let clLocation = CLLocation(
-        latitude: location.coordinate.latitude,
-        longitude: location.coordinate.longitude
-    )
+    let placemark = MKPlacemark(coordinate: location.coordinate)
 
-    let item = MKMapItem(location: clLocation)
+    let item = MKMapItem(placemark: placemark)
     item.name = location.name
 
     let options: [String: Any] = [
@@ -108,6 +114,7 @@ private func openDirections(to location: CampusLocation) {
 
     item.openInMaps(launchOptions: options)
 }
+
 
 
 struct CampusLocation: Identifiable, Hashable {
