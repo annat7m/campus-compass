@@ -8,16 +8,126 @@
 import SwiftUI
 import MapKit
 
+struct LocationPreviewSheet: View {
+    let location: CampusLocation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+
+            // Header (like Apple Maps card)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(location.name)
+                    .font(.title2)
+                    .bold()
+
+                if let desc = location.shortDescription {
+                    Text(desc)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Divider()
+
+            // Details (success criteria)
+            VStack(alignment: .leading, spacing: 10) {
+
+                if let floors = location.floors {
+                    InfoRow(title: "Floors", value: "\(floors)")
+                }
+
+                if !location.studentServiceOffices.isEmpty {
+                    InfoRow(
+                        title: "Student Services",
+                        value: location.studentServiceOffices.joined(separator: ", ")
+                    )
+                }
+
+                if let accessibility = location.accessibilityInfo {
+                    InfoRow(title: "Accessibility", value: accessibility)
+                }
+
+                if let hours = location.hoursOpen {
+                    InfoRow(title: "Hours", value: hours)
+                }
+
+                if let url = location.websiteURL {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Website")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Link(url.absoluteString, destination: url)
+                            .font(.body)
+                    }
+                }
+
+                if let contact = location.contactInfo {
+                    InfoRow(title: "Contact", value: contact)
+                }
+            }
+
+            Spacer()
+        }
+        .padding()
+        .presentationDetents([.medium, .large])
+    }
+}
+
+private struct InfoRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.body)
+        }
+    }
+}
+
+
+import CoreLocation
+
+private func openDirections(to location: CampusLocation) {
+    let clLocation = CLLocation(
+        latitude: location.coordinate.latitude,
+        longitude: location.coordinate.longitude
+    )
+
+    let item = MKMapItem(location: clLocation)
+    item.name = location.name
+
+    let options: [String: Any] = [
+        MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
+        // or MKLaunchOptionsDirectionsModeDriving
+    ]
+
+    item.openInMaps(launchOptions: options)
+}
+
+
 struct CampusLocation: Identifiable, Hashable {
     let id = UUID()
     let name: String
-    let description: String
     let latitude: Double
-        let longitude: Double
+    let longitude: Double
 
-        var coordinate: CLLocationCoordinate2D {
-            .init(latitude: latitude, longitude: longitude)
-        }
+    let floors: Int?
+    let studentServiceOffices: [String]
+    let accessibilityInfo: String?
+    let hoursOpen: String?
+    let websiteURL: URL?
+    let contactInfo: String?
+    let shortDescription: String?
+    
+    
+    var coordinate: CLLocationCoordinate2D {
+        .init(latitude: latitude, longitude: longitude)
+    }
 }
 
 struct MapView: View {
@@ -28,14 +138,33 @@ struct MapView: View {
     @Namespace private var mapScope
     
     let campusLocations: [CampusLocation] = [
-        .init(name: "University Center",
-              description: "Central hub for student services and campus activities.",
-              latitude: 45.52207, longitude: -123.10894),
-
-        .init(name: "Strain Science Center",
-              description: "Academic building with classrooms and labs.",
-              latitude: 45.52180, longitude: -123.10723),
+        .init(
+            name: "University Center",
+            latitude: 45.52207,
+            longitude: -123.10894,
+            floors: 2,
+            studentServiceOffices: ["Front Desk", "Student Life (example)"],
+            accessibilityInfo: "Accessible entrances available (placeholder).",
+            hoursOpen: "Hours vary (placeholder).",
+            websiteURL: URL(string: "https://www.pacificu.edu"),
+            contactInfo: "Contact info TBD",
+            shortDescription: "Central hub for student services and campus activities."
+        ),
+        .init(
+            name: "Strain Science Center",
+            latitude: 45.52180,
+            longitude: -123.10723,
+            floors: 3,
+            studentServiceOffices: ["Office TBD"],
+            accessibilityInfo: "Elevator/ramp info TBD",
+            hoursOpen: "Hours vary (placeholder).",
+            websiteURL: nil,
+            contactInfo: "Contact info TBD",
+            shortDescription: "Science classrooms and laboratories."
+        )
+        // add the rest the same way
     ]
+
 
 
     let UCLoc = CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)
@@ -112,14 +241,10 @@ struct MapView: View {
             MapCompass(scope: mapScope)
             MapScaleView(scope: mapScope)
         }.sheet(item: $selectedLocation) { location in
-            VStack(alignment: .leading, spacing: 12) {
-                Text(location.name).font(.title2).bold()
-                Text(location.description)
-                Spacer()
-            }
-            .padding()
-            .presentationDetents([.medium])
+            LocationPreviewSheet(location: location)
         }
+        
+        
 //        .onReceive(locationManager.$location) { location in
 //            guard let location, !hasCenteredOnUser else { return }
 //
