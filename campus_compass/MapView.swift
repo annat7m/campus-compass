@@ -152,9 +152,9 @@ struct MapView: View {
             floors: 2,
             studentServiceOffices: ["Front Desk", "Student Life (example)"],
             accessibilityInfo: "Accessible entrances available (placeholder).",
-            hoursOpen: "Hours vary (placeholder).",
+            hoursOpen: "8AM - 7PM",
             websiteURL: URL(string: "https://www.pacificu.edu"),
-            contactInfo: "Contact info TBD",
+            contactInfo: "N/A",
             shortDescription: "Central hub for student services and campus activities."
         ),
         .init(
@@ -162,21 +162,22 @@ struct MapView: View {
             latitude: 45.52180,
             longitude: -123.10723,
             floors: 3,
-            studentServiceOffices: ["Office TBD"],
+            studentServiceOffices: ["N/A"],
             accessibilityInfo: "Elevator/ramp info TBD",
-            hoursOpen: "Hours vary (placeholder).",
+            hoursOpen: "7AM - 5PM",
             websiteURL: nil,
-            contactInfo: "Contact info TBD",
+            contactInfo: "N/A",
             shortDescription: "Science classrooms and laboratories."
-        )
-        // add the rest the same way
+        ),
+        .init(name: "Aucoin Hall", latitude: 45.52142, longitude: -123.10982, floors: 2, studentServiceOffices: ["Academic and Career Advising, International Student Services"], accessibilityInfo: "Elevator/ramp info TBD", hoursOpen: "7AM - 5PM", websiteURL: nil, contactInfo: nil, shortDescription: nil),
+        .init(name: "Tran Library", latitude: 45.52144, longitude: -123.10860, floors: 3, studentServiceOffices: ["Center for Learning and Student Sucess (CLASS), 24/7 Study Center"], accessibilityInfo: "Elevator located just past the help desk", hoursOpen: "7:30AM - 7PM", websiteURL: URL(string: "https://www.lib.pacificu.edu"), contactInfo: "503-352-1400", shortDescription: nil)
     ]
 
 
 
-    let UCLoc = CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)
-    let Strain = CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.10723)
-    let Aucoin = CLLocationCoordinate2D(latitude: 45.52142, longitude: -123.10982)
+//    let UCLoc = CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)
+//    let Strain = CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.10723)
+//    let Aucoin = CLLocationCoordinate2D(latitude: 45.52142, longitude: -123.10982)
     let Murdock = CLLocationCoordinate2D(latitude: 45.52136, longitude: -123.10679)
     let MgGill = CLLocationCoordinate2D(latitude: 45.52113, longitude: -123.10730)
     let Berglund = CLLocationCoordinate2D(latitude: 45.52077, longitude: -123.10730)
@@ -185,7 +186,7 @@ struct MapView: View {
     let TaylorMeade = CLLocationCoordinate2D(latitude: 45.52064, longitude: -123.10787)
     let Clark = CLLocationCoordinate2D(latitude: 45.52290, longitude: -123.10899)
     let Bookstore = CLLocationCoordinate2D(latitude: 45.52179, longitude: -123.10869)
-    let Library = CLLocationCoordinate2D(latitude: 45.52144, longitude: -123.10860)
+//    let Library = CLLocationCoordinate2D(latitude: 45.52144, longitude: -123.10860)
     let Warner = CLLocationCoordinate2D(latitude: 45.52002, longitude: -123.10942)
     let Marsh = CLLocationCoordinate2D(latitude: 45.52095, longitude: -123.10946)
     let Mac = CLLocationCoordinate2D(latitude: 45.52283, longitude: -123.11012)
@@ -216,31 +217,31 @@ struct MapView: View {
 //            Marker("University Center", coordinate: UCLoc)
 //            Marker("Strain Science Center", coordinate: Strain)
 //            Marker("Aucoin Hall", coordinate: Aucoin)
-//            Marker("Murdock Hall", coordinate: Murdock)
-//            Marker("McGill Auditorium", coordinate: MgGill)
-//            Marker("Berglund Hall", coordinate: Berglund)
-//            Marker("Cascade Hall", coordinate: Cascade)
-//            Marker("Price Hall", coordinate: Price)
-//            Marker("Taylor-Meade Performing Arts", coordinate: TaylorMeade)
-//            Marker("Clark Hall", coordinate: Clark)
-//            Marker("Pacific Bookstore", coordinate: Bookstore)
+            Marker("Murdock Hall", coordinate: Murdock)
+            Marker("McGill Auditorium", coordinate: MgGill)
+            Marker("Berglund Hall", coordinate: Berglund)
+            Marker("Cascade Hall", coordinate: Cascade)
+            Marker("Price Hall", coordinate: Price)
+            Marker("Taylor-Meade Performing Arts", coordinate: TaylorMeade)
+            Marker("Clark Hall", coordinate: Clark)
+            Marker("Pacific Bookstore", coordinate: Bookstore)
 //            Marker("Tran Library", coordinate: Library)
-//            Marker("Warner Hall", coordinate: Warner)
-//            Marker("Marsh Hall", coordinate: Marsh)
-//            Marker("McCormick Hall", coordinate: Mac)
-//            Marker("Walter Hall", coordinate: Walter)
-//            Marker("Walter Annex", coordinate: WalterAnnex)
-//            Marker("Bates House", coordinate: Bates)
-//            Marker("Carnegie Hall", coordinate: Carnegie)
-//            Marker("Brown Hall", coordinate: Brown)
-//            Marker("Drake House", coordinate: Drake)
-//            Marker("Campus Public Saftey", coordinate: CPS)
-//            Marker("Admissions Office", coordinate: Admissions)
-//            Marker("Chapman Hall", coordinate: Chapman)
-//            Marker("World Language House", coordinate: WLH)
-//            Marker("Service Center", coordinate: ServiceCenter)
-//            Marker("Outdoor Pursuits", coordinate: OutdoorPursuits)
-//            Marker("Old College Hall", coordinate: OldCollege)
+            Marker("Warner Hall", coordinate: Warner)
+            Marker("Marsh Hall", coordinate: Marsh)
+            Marker("McCormick Hall", coordinate: Mac)
+            Marker("Walter Hall", coordinate: Walter)
+            Marker("Walter Annex", coordinate: WalterAnnex)
+            Marker("Bates House", coordinate: Bates)
+            Marker("Carnegie Hall", coordinate: Carnegie)
+            Marker("Brown Hall", coordinate: Brown)
+            Marker("Drake House", coordinate: Drake)
+            Marker("Campus Public Saftey", coordinate: CPS)
+            Marker("Admissions Office", coordinate: Admissions)
+            Marker("Chapman Hall", coordinate: Chapman)
+            Marker("World Language House", coordinate: WLH)
+            Marker("Service Center", coordinate: ServiceCenter)
+            Marker("Outdoor Pursuits", coordinate: OutdoorPursuits)
+            Marker("Old College Hall", coordinate: OldCollege)
         }.onAppear {
             locationManager.requestPermissionAndStart()
         }.mapControls{
