@@ -29,9 +29,10 @@ import SwiftUI
 /// - Note: Currently uses a constant binding, so typing will not persist.
 ///   Convert to a `@Binding var searchText: String` when wiring up search.
 struct SearchBarView: View {
-    @State private var searchText: String = ""
+    @Binding var searchText: String
+    
     var body: some View {
-        TextField("Search...", text: .constant(""))
+        TextField("Search buildings...", text: $searchText)
             .textFieldStyle(RoundedBorderTextFieldStyle())
             .padding().background(
                 RoundedRectangle(cornerRadius: 16)
@@ -223,6 +224,21 @@ struct ActionButton: View {
 struct HomeView: View {
     var session: UserSession
 
+    @EnvironmentObject private var appState: AppState
+    @State private var searchText = ""
+    
+    // Replace with your real building dataset
+        private let buildings: [Building] = BuildingStore.all
+
+        private var filteredBuildings: [Building] {
+            let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !q.isEmpty else { return [] }
+            return buildings
+                .filter { $0.name.localizedCaseInsensitiveContains(q) }
+                .prefix(6)
+                .map { $0 }
+        }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -259,7 +275,43 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.horizontal)
             }
-            SearchBarView()
+            SearchBarView(searchText: $searchText)
+            
+            // Results drop-down
+            if !filteredBuildings.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(filteredBuildings) { b in
+                        Button {
+                            // 1) store selection
+                            appState.selectedBuildingID = b.id
+                            // 2) jump to map tab
+                            appState.selectedTab = 1
+                            // 3) optional: clear search
+                            searchText = ""
+                        } label: {
+                            HStack {
+                                Image(systemName: "building.2")
+                                Text(b.name)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 12)
+                        }
+                        .buttonStyle(.plain)
+
+                        Divider()
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+                )
+                .padding(.horizontal)
+            }
+            
             MenuView(session:session)
         }
         .padding()
