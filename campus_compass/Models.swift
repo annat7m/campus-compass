@@ -8,31 +8,56 @@
 import Foundation
 import SwiftData
 import CoreLocation
+import CloudKit
 
-@Model
-class Building {
-    var id: UUID
-    var name: String
-    var latitude: Double
-    var longitude: Double
-    var floors: [Floor]
+struct CampusBuilding: Identifiable {
+    let id: CKRecord.ID              // CloudKit record identifier
+    let name: String
+    let latitude: Double
+    let longitude: Double
 
-    init(id: UUID = UUID(),
-             name: String,
-             latitude: Double,
-             longitude: Double,
-             floors: [Floor] = []) {
-            self.id = id
-            self.name = name
-            self.latitude = latitude
-            self.longitude = longitude
-            self.floors = floors
-        }
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
 
-        var coordinate: CLLocationCoordinate2D {
-            CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        }
+    init?(record: CKRecord) {
+        guard
+            let name = record["Name"] as? String,
+            let lat = record["Latitude"] as? Double,
+            let lon = record["Longitude"] as? Double
+        else { return nil }
+
+        self.id = record.recordID
+        self.name = name
+        self.latitude = lat
+        self.longitude = lon
+    }
 }
+
+//@Model
+//class Building {
+//    var id: UUID
+//    var name: String
+//    var latitude: Double
+//    var longitude: Double
+//    var floors: [Floor]
+//
+//    init(id: UUID = UUID(),
+//             name: String,
+//             latitude: Double,
+//             longitude: Double,
+//             floors: [Floor] = []) {
+//            self.id = id
+//            self.name = name
+//            self.latitude = latitude
+//            self.longitude = longitude
+//            self.floors = floors
+//        }
+//
+//        var coordinate: CLLocationCoordinate2D {
+//            CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+//        }
+//}
 
 @Model
 class Floor {
