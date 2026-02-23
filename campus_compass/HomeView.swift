@@ -226,7 +226,7 @@ struct HomeView: View {
 //    var session: UserSession
 
     @EnvironmentObject private var appState: AppState
-       @StateObject private var buildingStore = BuildingStore()
+    @EnvironmentObject private var buildingStore: BuildingStore
        @State private var searchText = ""
 
         private var filteredBuildings: [CampusBuilding] {
