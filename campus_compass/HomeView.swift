@@ -23,7 +23,6 @@
 //
 
 import SwiftUI
-import CloudKit
 
 /// A simple search input UI used on the Home screen.
 ///
@@ -115,7 +114,7 @@ struct MenuItem: Identifiable {
 /// - If user logged in but favorites empty: show a "No buildings saved" message.
 /// - Otherwise: map favorites strings into `MenuItem` buttons.
 struct MenuView: View {
-//    var session: UserSession
+    var profile: UserProfile
 
     var body: some View {
         ScrollView {
@@ -124,10 +123,10 @@ struct MenuView: View {
                 items: [
                     MenuItem(title: "View Campus Map", systemImage: "map", action: { print("Campus Map tapped") }),
                     MenuItem(title: "Find Parking", systemImage: "car.fill", action: { print("Find Parking tapped") }),
-                    MenuItem(title: "Find Dining Options", systemImage: "fork.knife", action: { print("Find Dining tapped")})
+                    MenuItem(title: "Find Dining Options", systemImage: "fork.knife", action: { print("Find Dining tapped") })
                 ]
             )
-            
+
             MenuSectionView(
                 title: "Popular Destinations",
                 items: [
@@ -135,52 +134,34 @@ struct MenuView: View {
                     MenuItem(title: "Gym", systemImage: "figure.strengthtraining.traditional", action: { print("Gym tapped") })
                 ]
             )
-            
+
             MenuSectionView(
                 title: "Recent Locations",
-                items: [MenuItem(title: "Strain Science Center", systemImage: "building", action:{print("Strain tapped") })
-                       ]
+                items: profile.recentLocations.map { loc in
+                    MenuItem(title: loc, systemImage: "building", action: { print("Tapped \(loc)") })
+                },
+                message: "No recent locations yet"
             )
-            
-            // FAVORITES SECTION
-            // Favorites are driven by the user's session state.
-//            if let user = session.currentUser {
-//                
-//                // User is logged in
-//                if user.favorites.isEmpty {
-//                    
-//                    // No favorites saved
-//                    MenuSectionView(
-//                        title: "Favorites",
-//                        items: nil,
-//                        message: "No buildings saved"
-//                    )
-//                    
-//                } else {
-//                    
-//                    // Convert favorites (strings) into MenuItem buttons
-//                    MenuSectionView(
-//                        title: "Favorites",
-//                        items: user.favorites.map { fav in
-//                            MenuItem(
-//                                title: fav,
-//                                systemImage: "building",
-//                                action: { print("Tapped \(fav)") }
-//                            )
-//                        }
-//                    )
-//                }
-//                
-//            } else {
-                
-                // No user logged in
+
+            // FAVORITES SECTION (now driven by profile)
+            if profile.favorites.isEmpty {
                 MenuSectionView(
                     title: "Favorites",
                     items: nil,
-                    message: "Log in to see your favorite locations!"
+                    message: "No buildings saved"
                 )
-//            }
-
+            } else {
+                MenuSectionView(
+                    title: "Favorites",
+                    items: profile.favorites.map { fav in
+                        MenuItem(
+                            title: fav,
+                            systemImage: "building",
+                            action: { print("Tapped \(fav)") }
+                        )
+                    }
+                )
+            }
         }
     }
 }
@@ -223,7 +204,7 @@ struct ActionButton: View {
 /// - Optional welcome message when a user is logged in.
 /// - Search bar and the menu content.
 struct HomeView: View {
-//    var session: UserSession
+    var profile: UserProfile
 
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var buildingStore: BuildingStore
@@ -268,13 +249,13 @@ struct HomeView: View {
             
             Spacer();
             // 👇 NEW — Welcome Message
-//            if let user = session.currentUser {
-//                Text("Welcome, \(user.name)!")
-//                    .font(.title2)
-//                    .fontWeight(.semibold)
-//                    .frame(maxWidth: .infinity, alignment: .center)
-//                    .padding(.horizontal)
-//            }
+            if !profile.name.isEmpty {
+                Text("Welcome, \(profile.name)!")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal)
+            }
             SearchBarView(searchText: $searchText)
             Text("Loaded: \(buildingStore.buildings.count)")
                 .font(.caption)
@@ -319,7 +300,7 @@ struct HomeView: View {
                 }
             }
             
-//            MenuView(session:session)
+            MenuView(profile:profile)
         }
         .padding()
     }

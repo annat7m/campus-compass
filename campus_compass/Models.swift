@@ -127,28 +127,22 @@ class POIEntity {
 
 //User information
 
-//@Model
-//class UserProfile {
-//    var name: String = ""
-//    var userName: String = ""
-//    var password: String = ""
-//    var prefersAccessibility: Bool = false
-//    var recentLocations: [String] = [""]
-//    var favorites: [String] = [""]
-//    
-//    init(
-//        name: String,
-//        userName: String,
-//        password: String,
-//        prefersAccessibility: Bool = false,
-//        recentLocations: [String] = [],
-//        favorites: [String] = []
-//    ) {
-//        self.name = name
-//        self.prefersAccessibility = prefersAccessibility
-//        self.recentLocations = recentLocations
-//        self.favorites = favorites
-//        self.userName = userName
-//        self.password = password
-//    }
-//}
+@Model
+class UserProfile {
+    var name: String = ""
+    var prefersAccessibility: Bool = false
+    var recentLocations: [String] = []
+    var favorites: [String] = []
+    
+    init(
+        name: String,
+        prefersAccessibility: Bool = false,
+        recentLocations: [String] = [],
+        favorites: [String] = []
+    ) {
+        self.name = name
+        self.prefersAccessibility = prefersAccessibility
+        self.recentLocations = recentLocations
+        self.favorites = favorites
+    }
+}
