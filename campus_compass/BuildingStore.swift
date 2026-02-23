@@ -18,6 +18,8 @@ final class BuildingStore: ObservableObject {
     private let db = CKContainer.default().publicCloudDatabase
 
     func fetchBuildings() async {
+        print("CloudKit container:", CKContainer.default().containerIdentifier ?? "nil")
+        
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -26,33 +28,37 @@ final class BuildingStore: ObservableObject {
         let query = CKQuery(recordType: "Buildings", predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "Name", ascending: true)] // optional
 
+
         do {
-            var fetched: [CampusBuilding] = []
-            var cursor: CKQueryOperation.Cursor? = nil
+            let (matchResults, _) = try await db.records(matching: query)
 
-            repeat {
-                // iOS 17+ async CloudKit query
-                let result: (matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?)
+            print("Raw matchResults count:", matchResults.count)
 
-                if let cursor {
-                    result = try await db.records(continuingMatchFrom: cursor, desiredKeys: nil, resultsLimit: 200)
-                } else {
-                    result = try await db.records(matching: query, desiredKeys: nil, resultsLimit: 200)
-                }
+            var converted: [CampusBuilding] = []
 
-                for (_, recordResult) in result.matchResults {
-                    if case .success(let record) = recordResult,
-                       let building = CampusBuilding(record: record) {
-                        fetched.append(building)
+            for (_, result) in matchResults {
+                switch result {
+                case .success(let record):
+                    print("Record fields:", record.allKeys())
+                    if let b = CampusBuilding(record: record) {
+                        converted.append(b)
+                    } else {
+                        print("⚠️ Could not convert record:", record.recordID.recordName)
+                        print("Name:", record["Name"] as Any)
+                        print("Latitude:", record["Latitude"] as Any)
+                        print("Longitude:", record["Longitude"] as Any)
                     }
+
+                case .failure(let err):
+                    print("Record fetch failure:", err)
                 }
+            }
 
-                cursor = result.queryCursor
-            } while cursor != nil
-
-            self.buildings = fetched
+            print("Converted buildings:", converted.count)
+            self.buildings = converted
 
         } catch {
+            print("Query error:", error)
             self.errorMessage = error.localizedDescription
         }
     }

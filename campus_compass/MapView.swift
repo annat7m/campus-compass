@@ -141,6 +141,10 @@ struct CampusLocation: Identifiable, Hashable {
 }
 
 struct MapView: View {
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var buildingStore: BuildingStore
+
+    
     @StateObject private var locationManager = LocationManager()
     @State private var camera: MapCameraPosition = .automatic
     @State private var hasCenteredOnUser = false   // <- NEW
@@ -320,6 +324,27 @@ struct MapView: View {
     let OldCollege = CLLocationCoordinate2DMake(45.52040, -123.11076)
     
     
+    private func matchCampusLocation(for building: CampusBuilding) -> CampusLocation {
+        // Try to match your rich local data first (best for sheet)
+        if let match = campusLocations.first(where: { $0.name.caseInsensitiveCompare(building.name) == .orderedSame }) {
+            return match
+        }
+
+        // Fallback: create a lightweight location so we can still zoom/select
+        return CampusLocation(
+            name: building.name,
+            latitude: building.latitude,
+            longitude: building.longitude,
+            floors: nil,
+            studentServiceOffices: nil,
+            accessibilityInfo: nil,
+            hoursOpen: nil,
+            websiteURL: nil,
+            contactInfo: nil,
+            shortDescription: nil
+        )
+    }
+    
     var body: some View {
         Map(position: $camera,selection: $selectedLocation, scope: mapScope) {
             UserAnnotation()
@@ -365,6 +390,25 @@ struct MapView: View {
             MapScaleView(scope: mapScope)
         }.sheet(item: $selectedLocation) { location in
             LocationPreviewSheet(location: location)
+        }.onChange(of: appState.selectedBuildingID) { _, newID in
+            guard let newID else { return }
+
+            // Find the selected CloudKit building
+            guard let building = buildingStore.buildings.first(where: { $0.id == newID }) else { return }
+
+            // Convert to a CampusLocation (prefer matching your detailed ones)
+            let loc = matchCampusLocation(for: building)
+
+            // 1) Select it (opens sheet + highlights marker because of .tag(location))
+            selectedLocation = loc
+
+            // 2) Zoom to it
+            camera = .region(
+                MKCoordinateRegion(
+                    center: loc.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+                )
+            )
         }
         
         

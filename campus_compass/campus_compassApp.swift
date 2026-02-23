@@ -14,6 +14,6 @@ struct campus_compassApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: UserProfile.self)
+//        .modelContainer(for: UserProfile.self)
     }
 }

@@ -23,6 +23,7 @@
 //
 
 import SwiftUI
+import CloudKit
 
 /// A simple search input UI used on the Home screen.
 ///
@@ -114,7 +115,7 @@ struct MenuItem: Identifiable {
 /// - If user logged in but favorites empty: show a "No buildings saved" message.
 /// - Otherwise: map favorites strings into `MenuItem` buttons.
 struct MenuView: View {
-    var session: UserSession
+//    var session: UserSession
 
     var body: some View {
         ScrollView {
@@ -143,34 +144,34 @@ struct MenuView: View {
             
             // FAVORITES SECTION
             // Favorites are driven by the user's session state.
-            if let user = session.currentUser {
-                
-                // User is logged in
-                if user.favorites.isEmpty {
-                    
-                    // No favorites saved
-                    MenuSectionView(
-                        title: "Favorites",
-                        items: nil,
-                        message: "No buildings saved"
-                    )
-                    
-                } else {
-                    
-                    // Convert favorites (strings) into MenuItem buttons
-                    MenuSectionView(
-                        title: "Favorites",
-                        items: user.favorites.map { fav in
-                            MenuItem(
-                                title: fav,
-                                systemImage: "building",
-                                action: { print("Tapped \(fav)") }
-                            )
-                        }
-                    )
-                }
-                
-            } else {
+//            if let user = session.currentUser {
+//                
+//                // User is logged in
+//                if user.favorites.isEmpty {
+//                    
+//                    // No favorites saved
+//                    MenuSectionView(
+//                        title: "Favorites",
+//                        items: nil,
+//                        message: "No buildings saved"
+//                    )
+//                    
+//                } else {
+//                    
+//                    // Convert favorites (strings) into MenuItem buttons
+//                    MenuSectionView(
+//                        title: "Favorites",
+//                        items: user.favorites.map { fav in
+//                            MenuItem(
+//                                title: fav,
+//                                systemImage: "building",
+//                                action: { print("Tapped \(fav)") }
+//                            )
+//                        }
+//                    )
+//                }
+//                
+//            } else {
                 
                 // No user logged in
                 MenuSectionView(
@@ -178,7 +179,7 @@ struct MenuView: View {
                     items: nil,
                     message: "Log in to see your favorite locations!"
                 )
-            }
+//            }
 
         }
     }
@@ -222,18 +223,17 @@ struct ActionButton: View {
 /// - Optional welcome message when a user is logged in.
 /// - Search bar and the menu content.
 struct HomeView: View {
-    var session: UserSession
+//    var session: UserSession
 
     @EnvironmentObject private var appState: AppState
-    @State private var searchText = ""
-    
-    // Replace with your real building dataset
-        private let buildings: [Building] = BuildingStore.all
+       @StateObject private var buildingStore = BuildingStore()
+       @State private var searchText = ""
 
-        private var filteredBuildings: [Building] {
+        private var filteredBuildings: [CampusBuilding] {
             let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !q.isEmpty else { return [] }
-            return buildings
+            
+            return buildingStore.buildings
                 .filter { $0.name.localizedCaseInsensitiveContains(q) }
                 .prefix(6)
                 .map { $0 }
@@ -268,22 +268,24 @@ struct HomeView: View {
             
             Spacer();
             // 👇 NEW — Welcome Message
-            if let user = session.currentUser {
-                Text("Welcome, \(user.name)!")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.horizontal)
-            }
+//            if let user = session.currentUser {
+//                Text("Welcome, \(user.name)!")
+//                    .font(.title2)
+//                    .fontWeight(.semibold)
+//                    .frame(maxWidth: .infinity, alignment: .center)
+//                    .padding(.horizontal)
+//            }
             SearchBarView(searchText: $searchText)
-            
+            Text("Loaded: \(buildingStore.buildings.count)")
+                .font(.caption)
+                .foregroundColor(.gray)
             // Results drop-down
             if !filteredBuildings.isEmpty {
                 VStack(spacing: 8) {
-                    ForEach(filteredBuildings) { b in
+                    ForEach(filteredBuildings) { building in
                         Button {
                             // 1) store selection
-                            appState.selectedBuildingID = b.id
+                            appState.selectedBuildingID = building.id
                             // 2) jump to map tab
                             appState.selectedTab = 1
                             // 3) optional: clear search
@@ -291,7 +293,7 @@ struct HomeView: View {
                         } label: {
                             HStack {
                                 Image(systemName: "building.2")
-                                Text(b.name)
+                                Text(building.name)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .foregroundColor(.gray)
@@ -310,9 +312,14 @@ struct HomeView: View {
                         .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
                 )
                 .padding(.horizontal)
+                .task {
+                    if buildingStore.buildings.isEmpty {
+                        await buildingStore.fetchBuildings()
+                    }
+                }
             }
             
-            MenuView(session:session)
+//            MenuView(session:session)
         }
         .padding()
     }
