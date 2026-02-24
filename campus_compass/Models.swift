@@ -130,18 +130,44 @@ class POIEntity {
 @Model
 class UserProfile {
     var name: String = ""
-    var prefersAccessibility: Bool = false
+
+    // Accessibility
+    var accessibilityMode: Bool = false
+    var avoidStairs: Bool = false
+    var voiceNavigation: Bool = true
+    var largeText: Bool = false
+
+    // Notifications
+    var navigationUpdates: Bool = true
+
+    // Preferences
+    var scenicRoute: Bool = false
+    var quietPath: Bool = false
+
+    // Existing lists
     var recentLocations: [String] = []
     var favorites: [String] = []
-    
+
     init(
         name: String,
-        prefersAccessibility: Bool = false,
+        accessibilityMode: Bool = false,
+        avoidStairs: Bool = false,
+        voiceNavigation: Bool = true,
+        largeText: Bool = false,
+        navigationUpdates: Bool = true,
+        scenicRoute: Bool = false,
+        quietPath: Bool = false,
         recentLocations: [String] = [],
         favorites: [String] = []
     ) {
         self.name = name
-        self.prefersAccessibility = prefersAccessibility
+        self.accessibilityMode = accessibilityMode
+        self.avoidStairs = avoidStairs
+        self.voiceNavigation = voiceNavigation
+        self.largeText = largeText
+        self.navigationUpdates = navigationUpdates
+        self.scenicRoute = scenicRoute
+        self.quietPath = quietPath
         self.recentLocations = recentLocations
         self.favorites = favorites
     }

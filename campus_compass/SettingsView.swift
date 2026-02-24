@@ -76,7 +76,7 @@ import CloudKit
     /// Represents one toggle item inside a section (e.g. “Dark Mode” or “Enable Notifications”)
     
     /// Represents a single toggle setting item.
-    struct ToggleItem: Identifiable {
+    struct ToggleItem: Identifiable, Equatable {
         let id = UUID()
         let title: String
         let subtitle: String?
@@ -179,7 +179,7 @@ struct SettingsView: View {
         ToggleItem(title: "Scenic Route", subtitle: "Take the prettiest path to your destination", systemImage: "landscape", isOn: false),
         ToggleItem(title: "Quiet Path", subtitle: "A calm way to your destination", systemImage: "range.fill", isOn: false)
     ]
-
+    @State private var showResetConfirm = false
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -196,23 +196,48 @@ struct SettingsView: View {
                 ToggleSectionView(title: "Accessibility", items: $accessibilityToggles)
                 ToggleSectionView(title: "Notifications", items: $notificationToggles)
                 ToggleSectionView(title: "Preferences", items: $navigationPreferences)
-
+                
+                //MARK: - Debugging purposes only
+                #if DEBUG
+                debugSection
+                #endif
             }
             .padding(.top)
         }
         .background(Color(.systemGroupedBackground))
         .onAppear {
-            // Initialize UI toggle state from model
-            accessibilityToggles[0].isOn = profile.prefersAccessibility
+            // Initialize UI toggle state from the model
+            accessibilityToggles[0].isOn = profile.accessibilityMode
+            accessibilityToggles[1].isOn = profile.avoidStairs
+            accessibilityToggles[2].isOn = profile.voiceNavigation
+            accessibilityToggles[3].isOn = profile.largeText
+
+            notificationToggles[0].isOn = profile.navigationUpdates
+
+            navigationPreferences[0].isOn = profile.scenicRoute
+            navigationPreferences[1].isOn = profile.quietPath
         }
-        .onChange(of: accessibilityToggles[0].isOn) { _, newValue in
-            // Persist change into SwiftData model
-            profile.prefersAccessibility = newValue
+        .onChange(of: accessibilityToggles) { _, _ in
+            // Persist Accessibility changes into SwiftData model
+            profile.accessibilityMode = accessibilityToggles[0].isOn
+            profile.avoidStairs = accessibilityToggles[1].isOn
+            profile.voiceNavigation = accessibilityToggles[2].isOn
+            profile.largeText = accessibilityToggles[3].isOn
+            try? modelContext.save()
+        }
+        .onChange(of: notificationToggles) { _, _ in
+            profile.navigationUpdates = notificationToggles[0].isOn
+            try? modelContext.save()
+        }
+        .onChange(of: navigationPreferences) { _, _ in
+            profile.scenicRoute = navigationPreferences[0].isOn
+            profile.quietPath = navigationPreferences[1].isOn
             try? modelContext.save()
         }
         .task {
             await loadICloudStatus()
         }
+        
     }
 
     private var profileSection: some View {
@@ -280,7 +305,53 @@ struct SettingsView: View {
             iCloudStatus = nil
             print("Failed to get iCloud status: \(error)")
         }
+        
+        
     }
+    
+    #if DEBUG
+    private var debugSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Debug")
+                .font(.headline)
+
+            Button(role: .destructive) {
+                showResetConfirm = true
+            } label: {
+                HStack {
+                    Image(systemName: "trash")
+                    Text("Reset Profile")
+                    Spacer()
+                }
+            }
+            .confirmationDialog(
+                "Reset profile?",
+                isPresented: $showResetConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Profile", role: .destructive) {
+                    resetProfile()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This deletes your UserProfile from SwiftData. On next launch, onboarding will appear again.")
+            }
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+        )
+        .padding(.horizontal)
+    }
+    #endif
+
+    private func resetProfile() {
+        modelContext.delete(profile)
+        try? modelContext.save()
+    }
+    
 }
     
     
