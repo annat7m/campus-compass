@@ -115,13 +115,20 @@ struct MenuItem: Identifiable {
 /// - Otherwise: map favorites strings into `MenuItem` buttons.
 struct MenuView: View {
     var profile: UserProfile
-
+    @EnvironmentObject private var appState: AppState
     var body: some View {
         ScrollView {
             MenuSectionView(
                 title: "Quick Actions",
                 items: [
-                    MenuItem(title: "View Campus Map", systemImage: "map", action: { print("Campus Map tapped") }),
+                    MenuItem(
+                        title: "View Campus Map",
+                        systemImage: "map",
+                        action: {
+                            appState.selectedBuildingID = nil   // clear any selection
+                            appState.selectedTab = 1            // switch to Map tab
+                        }
+                    ),
                     MenuItem(title: "Find Parking", systemImage: "car.fill", action: { print("Find Parking tapped") }),
                     MenuItem(title: "Find Dining Options", systemImage: "fork.knife", action: { print("Find Dining tapped") })
                 ]
@@ -210,15 +217,30 @@ struct HomeView: View {
     @EnvironmentObject private var buildingStore: BuildingStore
        @State private var searchText = ""
 
-        private var filteredBuildings: [CampusBuilding] {
-            let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !q.isEmpty else { return [] }
-            
-            return buildingStore.buildings
-                .filter { $0.name.localizedCaseInsensitiveContains(q) }
-                .prefix(6)
-                .map { $0 }
-        }
+    private var filteredBuildings: [CampusBuilding] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return [] }
+
+        let qLower = q.lowercased()
+
+        return buildingStore.buildings
+            .filter { $0.name.localizedCaseInsensitiveContains(q) }
+            .sorted { a, b in
+                let aName = a.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let bName = b.name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                let aStarts = aName.lowercased().hasPrefix(qLower)
+                let bStarts = bName.lowercased().hasPrefix(qLower)
+
+                // 1) Starts-with matches first
+                if aStarts != bStarts { return aStarts && !bStarts }
+
+                // 2) Otherwise alphabetical (stable and predictable)
+                return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
+            }
+            .prefix(6)
+            .map { $0 }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -257,9 +279,9 @@ struct HomeView: View {
                     .padding(.horizontal)
             }
             SearchBarView(searchText: $searchText)
-            Text("Loaded: \(buildingStore.buildings.count)")
-                .font(.caption)
-                .foregroundColor(.gray)
+//            Text("Loaded: \(buildingStore.buildings.count)")
+//                .font(.caption)
+//                .foregroundColor(.gray)
             // Results drop-down
             if !filteredBuildings.isEmpty {
                 VStack(spacing: 8) {
