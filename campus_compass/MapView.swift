@@ -12,8 +12,9 @@ struct MapView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var camera: MapCameraPosition = .automatic
     @State private var hasCenteredOnUser = false
-    @State private var indoorFloors: [IndoorFloor] = []
+    @State private var indoorBuildings: [IndoorBuilding] = []
     @State private var indoorFeaturesByFloor: [String: [MKGeoJSONFeature]] = [:]
+    @State private var selectedBuildingId: String = ""
     @State private var selectedFloorId: String = ""
 
     let UCLoc = CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)
@@ -30,21 +31,39 @@ struct MapView: View {
             IndoorMapLayer(features: activeIndoorFeatures)
         }
         .task {
-            let data = loadIndoorData()
-            indoorFloors = data.floors
+            let data = IndoorDataLoader.loadCampusIndoorData()
+            indoorBuildings = data.buildings
             indoorFeaturesByFloor = data.featuresByFloor
-            if selectedFloorId.isEmpty, let first = data.floors.first?.id {
-                selectedFloorId = first
+            syncSelection(with: data.buildings)
+        }
+        .onChange(of: selectedBuildingId) { _, newValue in
+            guard let building = indoorBuildings.first(where: { $0.id == newValue }) else { return }
+            guard !building.floors.isEmpty else {
+                selectedFloorId = ""
+                return
+            }
+            let defaultId = building.floors.first { $0.id == building.defaultFloorId }?.id
+                ?? building.floors.first?.id ?? ""
+            if !defaultId.isEmpty {
+                selectedFloorId = defaultId
+                focusOnBuilding(floorId: defaultId)
             }
         }
         .overlay(alignment: .trailing) {
-            if !indoorFloors.isEmpty {
+            if !visibleFloors.isEmpty {
                 VStack {
                     Spacer()
-                    FloorStack(floors: indoorFloors, selection: $selectedFloorId)
+                    FloorStack(floors: visibleFloors, selection: $selectedFloorId)
                 }
                 .padding(.trailing, 12)
                 .padding(.bottom, 120)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if !indoorBuildings.isEmpty {
+                BuildingPicker(buildings: indoorBuildings, selection: $selectedBuildingId)
+                    .padding(.leading, 12)
+                    .padding(.top, 60)
             }
         }
         .onReceive(locationManager.$location) { location in
@@ -65,109 +84,91 @@ struct MapView: View {
     private var activeIndoorFeatures: [MKGeoJSONFeature] {
         indoorFeaturesByFloor[selectedFloorId] ?? []
     }
-}
 
-private struct IndoorFloor: Identifiable {
-    let id: String
-    let name: String
-    let elevation: Double
-}
-
-private struct IndoorData {
-    let floors: [IndoorFloor]
-    let featuresByFloor: [String: [MKGeoJSONFeature]]
-
-    static let empty = IndoorData(floors: [], featuresByFloor: [:])
-}
-
-private func loadIndoorData() -> IndoorData {
-    let folderName = "IndoorGeoJSON"
-    guard let baseURL = Bundle.main.resourceURL?.appendingPathComponent(folderName) else {
-        return .empty
+    private var visibleFloors: [IndoorFloor] {
+        indoorBuildings.first(where: { $0.id == selectedBuildingId })?.floors ?? []
     }
 
-    let decoder = MKGeoJSONDecoder()
-    var floors: [IndoorFloor] = []
-    var featuresByFloor: [String: [MKGeoJSONFeature]] = [:]
-    let fm = FileManager.default
-    guard let enumerator = fm.enumerator(at: baseURL,
-                                         includingPropertiesForKeys: [.isRegularFileKey],
-                                         options: [.skipsHiddenFiles]) else {
-        return .empty
-    }
-
-    for case let fileURL as URL in enumerator {
-        let ext = fileURL.pathExtension.lowercased()
-        guard ext == "json" || ext == "geojson" else { continue }
-
-        let fileName = fileURL.lastPathComponent.lowercased()
-        if fileName == "floors.geojson" || fileName == "floor.geojson" {
-            floors.append(contentsOf: decodeFloors(from: fileURL, decoder: decoder))
-            continue
+    private func syncSelection(with buildings: [IndoorBuilding]) {
+        let resolvedBuilding = buildings.first(where: { $0.id == selectedBuildingId })
+            ?? buildings.first(where: { !$0.floors.isEmpty })
+            ?? buildings.first
+        guard let activeBuilding = resolvedBuilding else {
+            selectedBuildingId = ""
+            selectedFloorId = ""
+            return
         }
 
-        let floorId = fileURL.deletingPathExtension().lastPathComponent
-        guard floorId.hasPrefix("f_") else { continue }
+        if selectedBuildingId != activeBuilding.id {
+            selectedBuildingId = activeBuilding.id
+        }
 
-        do {
-            let data = try Data(contentsOf: fileURL)
-            let objects = try decoder.decode(data)
-            for obj in objects {
-                if let feature = obj as? MKGeoJSONFeature {
-                    featuresByFloor[floorId, default: []].append(feature)
-                }
+        guard !activeBuilding.floors.isEmpty else {
+            selectedFloorId = ""
+            return
+        }
+
+        let floorIds = Set(activeBuilding.floors.map { $0.id })
+        if !floorIds.contains(selectedFloorId) {
+            let defaultId = activeBuilding.floors.first { $0.id == activeBuilding.defaultFloorId }?.id
+                ?? activeBuilding.floors.first?.id ?? ""
+            selectedFloorId = defaultId
+        }
+    }
+
+    private func focusOnBuilding(floorId: String) {
+        guard let rect = mapRect(for: floorId) else { return }
+        guard rect.size.width > 0, rect.size.height > 0 else { return }
+
+        let padded = rect.insetBy(dx: -rect.size.width * 0.25, dy: -rect.size.height * 0.25)
+        let region = MKCoordinateRegion(padded)
+        withAnimation(.easeInOut(duration: 0.35)) {
+            camera = .region(region)
+        }
+    }
+
+    private func mapRect(for floorId: String) -> MKMapRect? {
+        guard let features = indoorFeaturesByFloor[floorId] else { return nil }
+        var rect: MKMapRect?
+        for feature in features {
+            for geometry in feature.geometry {
+                guard let geometryRect = mapRect(for: geometry) else { continue }
+                rect = rect.map { $0.union(geometryRect) } ?? geometryRect
             }
-        } catch {
-            print("IndoorGeoJSON load failed for \(fileURL.lastPathComponent): \(error)")
         }
+        return rect
     }
 
-    if floors.isEmpty {
-        let ids = featuresByFloor.keys.sorted()
-        floors = ids.map { IndoorFloor(id: $0, name: $0, elevation: 0) }
-    } else {
-        floors.sort { $0.elevation < $1.elevation }
-    }
-
-    return IndoorData(floors: floors, featuresByFloor: featuresByFloor)
-}
-
-private func decodeFloors(from url: URL, decoder: MKGeoJSONDecoder) -> [IndoorFloor] {
-    do {
-        let data = try Data(contentsOf: url)
-        let objects = try decoder.decode(data)
-        var result: [IndoorFloor] = []
-        for obj in objects {
-            guard let feature = obj as? MKGeoJSONFeature,
-                  let floor = parseFloor(feature) else { continue }
-            result.append(floor)
+    private func mapRect(for geometry: MKShape & MKGeoJSONObject) -> MKMapRect? {
+        if let polygon = geometry as? MKPolygon {
+            return polygon.boundingMapRect
         }
-        return result
-    } catch {
-        print("IndoorGeoJSON floor load failed for \(url.lastPathComponent): \(error)")
-        return []
-    }
-}
-
-private func parseFloor(_ feature: MKGeoJSONFeature) -> IndoorFloor? {
-    guard let data = feature.properties,
-          let props = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-          let id = props["id"] as? String else {
+        if let polyline = geometry as? MKPolyline {
+            return polyline.boundingMapRect
+        }
+        if let multiPolygon = geometry as? MKMultiPolygon {
+            return unionRects(multiPolygon.polygons.map(\.boundingMapRect))
+        }
+        if let multiPolyline = geometry as? MKMultiPolyline {
+            return unionRects(multiPolyline.polylines.map(\.boundingMapRect))
+        }
+        if let point = geometry as? MKPointAnnotation {
+            let mapPoint = MKMapPoint(point.coordinate)
+            let size = MKMapSize(width: 200, height: 200)
+            return MKMapRect(origin: MKMapPoint(x: mapPoint.x - size.width / 2,
+                                                y: mapPoint.y - size.height / 2),
+                             size: size)
+        }
         return nil
     }
 
-    let details = props["details"] as? [String: Any]
-    let name = (details?["name"] as? String) ?? id
-    let elevation: Double
-    if let value = props["elevation"] as? Double {
-        elevation = value
-    } else if let value = props["elevation"] as? Int {
-        elevation = Double(value)
-    } else {
-        elevation = 0
+    private func unionRects(_ rects: [MKMapRect]) -> MKMapRect? {
+        var combined: MKMapRect?
+        for rect in rects {
+            combined = combined.map { $0.union(rect) } ?? rect
+        }
+        return combined
     }
-
-    return IndoorFloor(id: id, name: name, elevation: elevation)
 }
 
 private struct IndoorMapLayer: MapContent {
@@ -180,8 +181,8 @@ private struct IndoorMapLayer: MapContent {
                 let shape = feature.geometry[gIdx]
                 if let poly = shape as? MKPolygon {
                     MapPolygon(poly)
-                        .foregroundStyle(.blue.opacity(0.2))
-                        .stroke(.blue, lineWidth: 1)
+                        .foregroundStyle(.clear)
+                        .stroke(.blue, lineWidth: 2)
                 } else if let line = shape as? MKPolyline {
                     MapPolyline(line)
                         .stroke(.orange, lineWidth: 2)
@@ -192,6 +193,35 @@ private struct IndoorMapLayer: MapContent {
                 }
             }
         }
+    }
+}
+
+private struct BuildingPicker: View {
+    let buildings: [IndoorBuilding]
+    @Binding var selection: String
+
+    var body: some View {
+        Menu {
+            ForEach(buildings) { building in
+                Button(building.name) {
+                    selection = building.id
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(currentName)
+                    .font(.subheadline.weight(.semibold))
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+
+    private var currentName: String {
+        buildings.first(where: { $0.id == selection })?.name ?? "Building"
     }
 }
 
