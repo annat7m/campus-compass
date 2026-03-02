@@ -19,26 +19,35 @@
 //  Notes:
 //  - Actions are currently placeholders (print statements). Replace with NavigationLinks
 //    or routing when destination screens are implemented.
-//  - SearchBarView is currently non-functional (TextField uses a constant binding).
+//  - SearchBarView currently stores text locally; wire it up to real search when available.
 //
 
 import SwiftUI
 
 /// A simple search input UI used on the Home screen.
 ///
-/// - Note: Currently uses a constant binding, so typing will not persist.
-///   Convert to a `@Binding var searchText: String` when wiring up search.
+/// - Note: Currently stores input locally; connect to real search when needed.
 struct SearchBarView: View {
     @State private var searchText: String = ""
     var body: some View {
-        TextField("Search...", text: .constant(""))
-            .textFieldStyle(RoundedBorderTextFieldStyle())
-            .padding().background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.systemBackground))
-                    .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
-            )
-            .padding()
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            TextField("Search...", text: $searchText)
+                .font(.custom("Avenir Next", size: 15))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.black.opacity(0.06), lineWidth: 1)
+        )
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -57,39 +66,44 @@ struct MenuSectionView: View {
     var message: String? = nil   // NEW (optional)
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.headline)
-                .padding(.horizontal)
+                .font(.custom("Avenir Next", size: 18).weight(.semibold))
             
-            VStack(spacing: 12) {
-
+            VStack(spacing: 0) {
                 if let items = items, !items.isEmpty {
-                    // Display the items
-                    ForEach(items) { item in
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         ActionButton(
                             title: item.title,
                             systemImage: item.systemImage,
                             action: item.action
                         )
+                        if index < items.count - 1 {
+                            Divider()
+                                .padding(.leading, 56)
+                        }
                     }
                 } else {
-                    // Display placeholder message
                     Text(message ?? "No items")
-                        .foregroundColor(.gray)
+                        .font(.custom("Avenir Next", size: 15))
+                        .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .padding()
+                        .padding(.vertical, 18)
                 }
             }
             .padding(.horizontal)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
+            )
         }
-        .padding(.vertical)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
-        )
-        .padding()
+        .padding(.vertical, 4)
     }
 }
 
@@ -116,7 +130,7 @@ struct MenuView: View {
     var session: UserSession
 
     var body: some View {
-        ScrollView {
+        LazyVStack(spacing: 18) {
             MenuSectionView(
                 title: "Quick Actions",
                 items: [
@@ -178,7 +192,6 @@ struct MenuView: View {
                     message: "Log in to see your favorite locations!"
                 )
             }
-
         }
     }
 }
@@ -195,20 +208,25 @@ struct ActionButton: View {
     
     var body: some View {
         Button(action: action) {
-            HStack {
-                Image(systemName: systemImage)
-                    .foregroundColor(.red)
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.red.opacity(0.12))
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Image(systemName: systemImage)
+                            .foregroundColor(.red)
+                    )
                 Text(title)
                     .foregroundColor(.primary)
-                    .fontWeight(.medium)
+                    .font(.custom("Avenir Next", size: 16))
                 Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
             }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-            )
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -224,44 +242,62 @@ struct HomeView: View {
     var session: UserSession
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Campus Compass")
-                    .fontWeight(.bold)
+        ScrollView {
+            VStack(spacing: 18) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Campus Compass")
+                            .font(.custom("Avenir Next", size: 24).weight(.bold))
+                        Spacer()
+                        Button(action: {}) {
+                            Image(systemName: "person.circle.fill")
+                                .resizable()
+                                .frame(width: 34, height: 34)
+                                .foregroundColor(.red)
+                        }
+                    }
 
-                Spacer()
+                    Text("Navigate Pacific University with ease")
+                        .font(.custom("Avenir Next", size: 14))
+                        .foregroundColor(.secondary)
 
-                Button(action: {}) {
-                    Image(systemName: "person.circle.fill")
-                        .resizable()
-                        .frame(width: 40, height: 40)
-                        .foregroundColor(.red)
+                    if let user = session.currentUser {
+                        Text("Welcome, \(user.name)!")
+                            .font(.custom("Avenir Next", size: 16).weight(.semibold))
+                            .foregroundColor(.red)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 12)
+                            .background(
+                                Capsule()
+                                    .fill(Color.red.opacity(0.12))
+                            )
+                    }
                 }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 8)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                )
+
+                SearchBarView()
+                MenuView(session: session)
             }
-
-            Divider()
-            Spacer().frame(height: 30)
-
-            Text("Campus Compass")
-                .font(.largeTitle)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            Text("Navigate Pacific University with ease")
-                .foregroundColor(.gray)
-                .frame(maxWidth: .infinity, alignment: .center)
-            
-            Spacer();
-            // 👇 NEW — Welcome Message
-            if let user = session.currentUser {
-                Text("Welcome, \(user.name)!")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.horizontal)
-            }
-            SearchBarView()
-            MenuView(session:session)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 28)
         }
-        .padding()
+        .background(
+            LinearGradient(
+                colors: [Color(.systemGroupedBackground), Color(.systemBackground)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+        )
     }
 }
