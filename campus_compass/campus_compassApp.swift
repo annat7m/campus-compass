@@ -21,7 +21,6 @@ struct campus_compassApp: App {
         do {
             let schema = Schema([UserProfile.self])
 
-            // IMPORTANT: replace with YOUR iCloud container identifier
             let config = ModelConfiguration(
                 schema: schema,
                 cloudKitDatabase: .private("iCloud.edu.pacificu.cs.campus-compass")

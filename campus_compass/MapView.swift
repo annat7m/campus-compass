@@ -7,14 +7,14 @@
 
 import SwiftUI
 import MapKit
+import CoreLocation
 
 struct LocationPreviewSheet: View {
     let location: CampusLocation
+    let onDirectionsTapped: (CampusLocation) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-
-            // Header (like Apple Maps card)
             VStack(alignment: .leading, spacing: 4) {
                 Text(location.name)
                     .font(.title2)
@@ -30,29 +30,25 @@ struct LocationPreviewSheet: View {
             Spacer()
 
             Button {
-                openDirections(to: location)
+                onDirectionsTapped(location)
             } label: {
                 Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-            }.buttonStyle(.borderedProminent)
-            
+            }
+            .buttonStyle(.borderedProminent)
+
             Divider()
 
-            // Details (success criteria)
             VStack(alignment: .leading, spacing: 10) {
-
                 if let floors = location.floors {
                     InfoRow(title: "Floors", value: "\(floors)")
                 }
 
-                if let offices = location.studentServiceOffices,
-                   !offices.isEmpty {
-
+                if let offices = location.studentServiceOffices, !offices.isEmpty {
                     InfoRow(
                         title: "Student Services",
                         value: offices.joined(separator: ", ")
                     )
                 }
-
 
                 if let accessibility = location.accessibilityInfo {
                     InfoRow(title: "Accessibility", value: accessibility)
@@ -101,23 +97,6 @@ private struct InfoRow: View {
 }
 
 
-import MapKit
-import CoreLocation
-
-private func openDirections(to location: CampusLocation) {
-    let placemark = MKPlacemark(coordinate: location.coordinate)
-
-    let item = MKMapItem(placemark: placemark)
-    item.name = location.name
-
-    let options: [String: Any] = [
-        MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking
-        // or MKLaunchOptionsDirectionsModeDriving
-    ]
-
-    item.openInMaps(launchOptions: options)
-}
-
 
 
 struct CampusLocation: Identifiable, Hashable {
@@ -144,6 +123,11 @@ struct MapView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var buildingStore: BuildingStore
 
+    @State private var activeRoute: MKRoute?
+    @State private var routeSteps: [MKRoute.Step] = []
+    @State private var isNavigating = false
+    @State private var isCalculatingRoute = false
+    @State private var navigationError: String?
     
     @StateObject private var locationManager = LocationManager()
     @State private var camera: MapCameraPosition = .automatic
@@ -345,9 +329,58 @@ struct MapView: View {
         )
     }
     
+    @MainActor
+    private func startDirections(to location: CampusLocation) async {
+        guard let userCoordinate = locationManager.location?.coordinate else {
+            navigationError = "Current location unavailable."
+            return
+        }
+
+        isCalculatingRoute = true
+        navigationError = nil
+
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: userCoordinate))
+        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: location.coordinate))
+        request.transportType = .walking
+
+        let directions = MKDirections(request: request)
+
+        do {
+            let response = try await directions.calculate()
+
+            guard let route = response.routes.first else {
+                navigationError = "No walking route found."
+                isCalculatingRoute = false
+                return
+            }
+
+            activeRoute = route
+            routeSteps = route.steps.filter {
+                !$0.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            isNavigating = true
+            isCalculatingRoute = false
+
+            selectedLocation = location
+
+            camera = .rect(route.polyline.boundingMapRect)
+        } catch {
+            navigationError = error.localizedDescription
+            isCalculatingRoute = false
+        }
+    }
+    
+    
+    
     var body: some View {
         Map(position: $camera,selection: $selectedLocation, scope: mapScope) {
             UserAnnotation()
+            
+            if let activeRoute {
+                MapPolyline(activeRoute.polyline)
+                    .stroke(.blue, lineWidth: 6)
+            }
             
             ForEach(campusLocations) { location in
                     Marker(location.name, coordinate: location.coordinate)
@@ -389,7 +422,11 @@ struct MapView: View {
             MapCompass(scope: mapScope)
             MapScaleView(scope: mapScope)
         }.sheet(item: $selectedLocation) { location in
-            LocationPreviewSheet(location: location)
+            LocationPreviewSheet(location: location) { tappedLocation in
+                Task {
+                    await startDirections(to: tappedLocation)
+                }
+            }
         }.onChange(of: appState.selectedBuildingID) { _, newID in
             guard let newID else { return }
 
@@ -409,6 +446,35 @@ struct MapView: View {
                     span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
                 )
             )
+        }.overlay(alignment: .top) {
+            if isNavigating, let firstStep = routeSteps.first {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Next Step")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text(firstStep.instructions)
+                        .font(.headline)
+                }
+                .padding()
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.top, 12)
+                .padding(.horizontal)
+            }
+        }.overlay {
+            if isCalculatingRoute {
+                ProgressView("Calculating route...")
+                    .padding()
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
+        .alert("Navigation Error", isPresented: Binding(
+            get: { navigationError != nil },
+            set: { if !$0 { navigationError = nil } }
+        )) {
+            Button("OK", role: .cancel) { navigationError = nil }
+        } message: {
+            Text(navigationError ?? "")
         }
         
         
