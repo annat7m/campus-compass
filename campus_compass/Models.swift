@@ -34,30 +34,55 @@ struct CampusBuilding: Identifiable {
     }
 }
 
-//@Model
-//class Building {
-//    var id: UUID
-//    var name: String
-//    var latitude: Double
-//    var longitude: Double
-//    var floors: [Floor]
-//
-//    init(id: UUID = UUID(),
-//             name: String,
-//             latitude: Double,
-//             longitude: Double,
-//             floors: [Floor] = []) {
-//            self.id = id
-//            self.name = name
-//            self.latitude = latitude
-//            self.longitude = longitude
-//            self.floors = floors
-//        }
-//
-//        var coordinate: CLLocationCoordinate2D {
-//            CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-//        }
-//}
+//User information
+
+@Model
+class UserProfile {
+    var name: String = ""
+
+    // Accessibility
+    var accessibilityMode: Bool = false
+    var avoidStairs: Bool = false
+    var voiceNavigation: Bool = true
+    var largeText: Bool = false
+
+    // Notifications
+    var navigationUpdates: Bool = true
+
+    // Preferences
+    var scenicRoute: Bool = false
+    var quietPath: Bool = false
+
+    // Existing lists
+    var recentLocations: [String] = []
+    var favorites: [String] = []
+
+    init(
+        name: String,
+        accessibilityMode: Bool = false,
+        avoidStairs: Bool = false,
+        voiceNavigation: Bool = true,
+        largeText: Bool = false,
+        navigationUpdates: Bool = true,
+        scenicRoute: Bool = false,
+        quietPath: Bool = false,
+        recentLocations: [String] = [],
+        favorites: [String] = []
+    ) {
+        self.name = name
+        self.accessibilityMode = accessibilityMode
+        self.avoidStairs = avoidStairs
+        self.voiceNavigation = voiceNavigation
+        self.largeText = largeText
+        self.navigationUpdates = navigationUpdates
+        self.scenicRoute = scenicRoute
+        self.quietPath = quietPath
+        self.recentLocations = recentLocations
+        self.favorites = favorites
+    }
+}
+
+
 
 @Model
 class Floor {
@@ -125,50 +150,3 @@ class POIEntity {
     }
 }
 
-//User information
-
-@Model
-class UserProfile {
-    var name: String = ""
-
-    // Accessibility
-    var accessibilityMode: Bool = false
-    var avoidStairs: Bool = false
-    var voiceNavigation: Bool = true
-    var largeText: Bool = false
-
-    // Notifications
-    var navigationUpdates: Bool = true
-
-    // Preferences
-    var scenicRoute: Bool = false
-    var quietPath: Bool = false
-
-    // Existing lists
-    var recentLocations: [String] = []
-    var favorites: [String] = []
-
-    init(
-        name: String,
-        accessibilityMode: Bool = false,
-        avoidStairs: Bool = false,
-        voiceNavigation: Bool = true,
-        largeText: Bool = false,
-        navigationUpdates: Bool = true,
-        scenicRoute: Bool = false,
-        quietPath: Bool = false,
-        recentLocations: [String] = [],
-        favorites: [String] = []
-    ) {
-        self.name = name
-        self.accessibilityMode = accessibilityMode
-        self.avoidStairs = avoidStairs
-        self.voiceNavigation = voiceNavigation
-        self.largeText = largeText
-        self.navigationUpdates = navigationUpdates
-        self.scenicRoute = scenicRoute
-        self.quietPath = quietPath
-        self.recentLocations = recentLocations
-        self.favorites = favorites
-    }
-}

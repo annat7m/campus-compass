@@ -331,6 +331,8 @@ struct MapView: View {
     
     @MainActor
     private func startDirections(to location: CampusLocation) async {
+        
+        selectedLocation = nil
         guard let userCoordinate = locationManager.location?.coordinate else {
             navigationError = "Current location unavailable."
             return
@@ -362,9 +364,9 @@ struct MapView: View {
             isNavigating = true
             isCalculatingRoute = false
 
-            selectedLocation = location
 
             camera = .rect(route.polyline.boundingMapRect)
+            
         } catch {
             navigationError = error.localizedDescription
             isCalculatingRoute = false

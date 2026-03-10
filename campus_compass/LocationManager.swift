@@ -40,6 +40,9 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.activityType = .fitness
+        manager.distanceFilter = 5
+        manager.pausesLocationUpdatesAutomatically = false
     }
 
     func requestPermissionAndStart() {
@@ -66,7 +69,12 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        location = locations.last
+        guard let latest = locations.last else { return }
+
+        // Ignore invalid or very inaccurate readings
+        guard latest.horizontalAccuracy > 0, latest.horizontalAccuracy <= 25 else { return }
+
+        location = latest
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

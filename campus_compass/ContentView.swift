@@ -15,12 +15,25 @@ struct ContentView: View {
         Group {
             if let profile = profiles.first {
                 mainTabs(profile: profile)
+                
             } else {
                 OnboardingView { name in
                     let p = UserProfile(name: name)
                     modelContext.insert(p)
-                    try? modelContext.save()
+                    
+                    do {
+                            try modelContext.save()
+                            print("Created and saved profile: \(p.name)")
+                        } catch {
+                            print("Failed to save profile: \(error)")
+                        }
                 }
+            }
+        }
+        .onAppear {
+            print("Profiles found locally: \(profiles.count)")
+            if let first = profiles.first {
+                print("First profile name: \(first.name)")
             }
         }
         .environmentObject(appState)
