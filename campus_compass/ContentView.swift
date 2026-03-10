@@ -3,12 +3,8 @@ import SwiftData
 
 struct ContentView: View {
     @StateObject private var appState = AppState()
-<<<<<<< HEAD
     @StateObject private var buildingStore = BuildingStore()
 
-=======
-    
->>>>>>> 12cf386 (fixed selected location functionaity to disappear when a route has started)
     @State private var selectedTab = 0
     @State private var settingsPath = NavigationPath()
 
@@ -16,7 +12,6 @@ struct ContentView: View {
     @Query private var profiles: [UserProfile]
 
     var body: some View {
-<<<<<<< HEAD
         Group {
             if let profile = profiles.first {
                 mainTabs(profile: profile)
@@ -42,16 +37,11 @@ struct ContentView: View {
     private func mainTabs(profile: UserProfile) -> some View {
         TabView(selection: $appState.selectedTab) {
             HomeView(profile: profile)
-=======
-        TabView(selection: $appState.selectedTab){
-            HomeView(session: session)
->>>>>>> 12cf386 (fixed selected location functionaity to disappear when a route has started)
                 .tabItem { Label("Home", systemImage: "house.fill") }
                 .tag(0)
 
             MapView()
                 .tabItem { Label("Map", systemImage: "map") }
-        
                 .tag(1)
 
             NavigationStack(path: $settingsPath) {
