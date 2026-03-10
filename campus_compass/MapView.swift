@@ -122,12 +122,16 @@ struct CampusLocation: Identifiable, Hashable {
 struct MapView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var buildingStore: BuildingStore
+    
+    
 
     @State private var activeRoute: MKRoute?
     @State private var routeSteps: [MKRoute.Step] = []
+    @State private var currentStepIndex: Int = 0
     @State private var isNavigating = false
     @State private var isCalculatingRoute = false
     @State private var navigationError: String?
+    @State private var navigationDestination: CampusLocation?
     
     @StateObject private var locationManager = LocationManager()
     @State private var camera: MapCameraPosition = .automatic
@@ -329,6 +333,16 @@ struct MapView: View {
         )
     }
     
+    private func endNavigation() {
+        activeRoute = nil
+        routeSteps = []
+        currentStepIndex = 0
+        isNavigating = false
+        isCalculatingRoute = false
+        navigationError = nil
+        navigationDestination = nil
+    }
+    
     @MainActor
     private func startDirections(to location: CampusLocation) async {
         
@@ -340,7 +354,8 @@ struct MapView: View {
 
         isCalculatingRoute = true
         navigationError = nil
-
+        currentStepIndex = 0
+        
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: userCoordinate))
         request.destination = MKMapItem(placemark: MKPlacemark(coordinate: location.coordinate))
@@ -361,8 +376,10 @@ struct MapView: View {
             routeSteps = route.steps.filter {
                 !$0.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
+            currentStepIndex = 0;
             isNavigating = true
             isCalculatingRoute = false
+            navigationDestination = location
 
 
             camera = .rect(route.polyline.boundingMapRect)
@@ -468,6 +485,18 @@ struct MapView: View {
                 ProgressView("Calculating route...")
                     .padding()
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            }
+        }.overlay(alignment: .bottom) {
+            if isNavigating {
+                Button(role: .destructive) {
+                    endNavigation()
+                } label: {
+                    Label("Exit Route", systemImage: "xmark.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding()
             }
         }
         .alert("Navigation Error", isPresented: Binding(
