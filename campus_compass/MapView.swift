@@ -96,7 +96,50 @@ private struct InfoRow: View {
     }
 }
 
+struct NavigationStepsView: View {
+    let steps: [MKRoute.Step]
+    let currentStepIndex: Int
+    let destinationName: String
 
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Destination") {
+                    Text(destinationName)
+                }
+
+                Section("Directions") {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: index == currentStepIndex ? "location.fill" : "arrow.turn.down.right")
+                                .foregroundStyle(index == currentStepIndex ? .blue : .secondary)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(step.instructions)
+                                    .font(.body)
+
+                                Text(stepDistanceText(step.distance))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .navigationTitle("Turn-by-Turn")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func stepDistanceText(_ meters: CLLocationDistance) -> String {
+        if meters >= 1000 {
+            return String(format: "%.1f km", meters / 1000)
+        } else {
+            return "\(Int(meters)) m"
+        }
+    }
+}
 
 
 struct CampusLocation: Identifiable, Hashable {
@@ -124,7 +167,7 @@ struct MapView: View {
     @EnvironmentObject private var buildingStore: BuildingStore
     
     
-
+    @State private var showDirectionsList = false
     @State private var activeRoute: MKRoute?
     @State private var routeSteps: [MKRoute.Step] = []
     @State private var currentStepIndex: Int = 0
@@ -138,6 +181,11 @@ struct MapView: View {
     @State private var hasCenteredOnUser = false   // <- NEW
     @State private var selectedLocation: CampusLocation?
     @Namespace private var mapScope
+    
+    private var currentStep: MKRoute.Step? {
+        guard routeSteps.indices.contains(currentStepIndex) else { return nil }
+        return routeSteps[currentStepIndex]
+    }
     
     let campusLocations: [CampusLocation] = [
         .init(
@@ -480,6 +528,28 @@ struct MapView: View {
                 .padding(.top, 12)
                 .padding(.horizontal)
             }
+        }.overlay(alignment: .top) {
+            if isNavigating, let currentStep {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Next Direction")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text(currentStep.instructions)
+                        .font(.headline)
+
+                    if routeSteps.indices.contains(currentStepIndex + 1) {
+                        Text("Then: \(routeSteps[currentStepIndex + 1].instructions)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal)
+                .padding(.top, 12)
+            }
         }.overlay {
             if isCalculatingRoute {
                 ProgressView("Calculating route...")
@@ -498,6 +568,26 @@ struct MapView: View {
                 .buttonStyle(.borderedProminent)
                 .padding()
             }
+        }.overlay(alignment: .bottomTrailing) {
+            if isNavigating {
+                Button {
+                    showDirectionsList = true
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.title2)
+                        .padding()
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .padding(.trailing, 20)
+                .padding(.bottom, 90)
+            }
+        }
+        .sheet(isPresented: $showDirectionsList) {
+            NavigationStepsView(
+                steps: routeSteps,
+                currentStepIndex: currentStepIndex,
+                destinationName: navigationDestination?.name ?? "Destination"
+            )
         }
         .alert("Navigation Error", isPresented: Binding(
             get: { navigationError != nil },
