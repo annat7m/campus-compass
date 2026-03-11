@@ -296,9 +296,7 @@ struct HomeView: View {
                     .padding(.horizontal)
             }
             SearchBarView(searchText: $searchText)
-//            Text("Loaded: \(buildingStore.buildings.count)")
-//                .font(.caption)
-//                .foregroundColor(.gray)
+
             // Results drop-down
             if !filteredBuildings.isEmpty {
                 VStack(spacing: 8) {

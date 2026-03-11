@@ -311,7 +311,7 @@ struct MapView: View {
               studentServiceOffices: ["Student Affairs"],
               accessibilityInfo: "Ramp located at front entrance, Elevator across from the help desk",
               hoursOpen: "7AM - 5PM",
-              websiteURL: nil,
+              websiteURL: URL(string: "https://www.pacificu.edu/directory/student-affairs/conferences-events"),
               contactInfo: "503-352-2200",
               shortDescription: nil
              ),
@@ -720,17 +720,5 @@ struct MapView: View {
             Text(navigationError ?? "")
         }
         
-        
-//        .onReceive(locationManager.$location) { location in
-//            guard let location, !hasCenteredOnUser else { return }
-//
-//            hasCenteredOnUser = true   // only do this once
-//            camera = .region(
-//                MKCoordinateRegion(
-//                    center: location.coordinate,
-//                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-//                )
-//            )
-//        }.ignoresSafeArea()
     }
 }
