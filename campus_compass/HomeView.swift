@@ -23,6 +23,7 @@
 //
 
 import SwiftUI
+import CloudKit
 
 /// A simple search input UI used on the Home screen.
 ///
@@ -216,7 +217,7 @@ struct HomeView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var buildingStore: BuildingStore
        @State private var searchText = ""
-
+    @State private var userID: String = "Loading..."
     private var filteredBuildings: [CampusBuilding] {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
@@ -261,6 +262,22 @@ struct HomeView: View {
             Divider()
             Spacer().frame(height: 30)
 
+            //DEBUG TEXT
+            Text("User ID: \(userID)")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .padding()
+                    .onAppear {
+                        let container = CKContainer.default()
+
+                        container.fetchUserRecordID { recordID, error in
+                            if let id = recordID?.recordName {
+                                DispatchQueue.main.async {
+                                    userID = id
+                                }
+                            }
+                        }
+                    }
             Text("Campus Compass")
                 .font(.largeTitle)
                 .frame(maxWidth: .infinity, alignment: .center)

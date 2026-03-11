@@ -325,39 +325,188 @@ struct MapView: View {
               websiteURL: URL(string: "https://pacific.bncollege.com/?storeId=45058&catalogId=10001&langId=-1"),
               contactInfo: nil,
               shortDescription: "The Pacific University Bookstore, operated by Barnes & Noble, offers textbooks, apparel, gifts and accessories for Pacific University students and friends."
+             ),
+        .init(name: "Warner Hall",
+              latitude: 45.52002,
+              longitude: -123.10942,
+              floors: 2,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Ramp access at the entrance",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: URL(string: "https://www.pacificu.edu/calendar-by-tag?tid=2278"),
+              contactInfo: nil,
+              shortDescription: "Warner Hall is home to the Theatre & Dance Department at Pacific and houses the small Tom Miles Theatre and a dance studio. "
+             ),
+        .init(name: "Marsh Hall",
+              latitude: 45.52095,
+              longitude: -123.10946,
+              floors: 4,
+              studentServiceOffices: ["Student Accounts", "Office of Financial Aid"],
+              accessibilityInfo: "Ramp available at main enterance",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: URL(string: "https://www.pacificu.edu/directory/student-affairs/office-financial-aid"),
+              contactInfo: "503-352-2857",
+              shortDescription: "Built in 1895, Marsh Hall was named for Pacific's first president, Sidney Harper Marsh. It was gutted by a fire in 1975 but carefully restored to be home to administrative offices, faculty offices and classrooms today."
+             ),
+        .init(name: "McCormick Hall",
+              latitude: 45.52283,
+              longitude: -123.11012,
+              floors: 3,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Accessability Lift on the left entrance",
+              hoursOpen: nil,
+              websiteURL: URL(string: "https://www.pacificu.edu/about/campuses-locations/forest-grove-campus/residence-halls/mccormick-hall"),
+              contactInfo: nil,
+              shortDescription: "McCormick Hall is a traditional-style residence hall with single, double and quad rooms, along with social and study areas, a community kitchen and laundry facilities. Fondly known as “Mac” and bearing a storied history among Pacific alumni, McCormick Hall is home to many first and second-year students."
+             ),
+        .init(name: "Walter Hall",
+              latitude: 45.52218,
+              longitude: -123.10998,
+              floors: 4,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Ramp located at main entrance",
+              hoursOpen: nil,
+              websiteURL: URL(string: "https://www.pacificu.edu/about/campuses-locations/forest-grove-campus/residence-halls/walter-hall"),
+              contactInfo: nil,
+              shortDescription: "Primarily housing first-year students, Walter is a great place to meet people! It's known for having lots of open doors and community events for students to get to know each other."
+             ),
+        .init(name: "Walter Annex",
+              latitude: 45.52199,
+              longitude: -123.11030,
+              floors: 1,
+              studentServiceOffices: nil,
+              accessibilityInfo: nil,
+              hoursOpen: "7AM - 5PM",
+              websiteURL: nil,
+              contactInfo: nil,
+              shortDescription: "A small building behind the Walter residence hall containing individual classrooms"
+             ),
+        .init(name: "Bates House",
+              latitude: 45.52192,
+              longitude: -123.11058,
+              floors: 2,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Ramp access available",
+              hoursOpen: nil,
+              websiteURL: nil,
+              contactInfo: nil,
+              shortDescription: "Bates House is home to the Pacific University staff and faculty offices."
+             ),
+        .init(name: "Carnegie Hall",
+              latitude: 45.52021,
+              longitude: -123.11034,
+              floors: 3,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Ramp access available",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: nil,
+              contactInfo: nil,
+              shortDescription: "Built in 1912, Carnegie Hall was Pacific's original campus library - the only academic library west of the Mississippi funded by the Carnegie Foundation. Today, Carnegie is home to classrooms and faculty offices for the university."
+             ),
+        .init(name: "Brown Hall",
+              latitude: 45.51990,
+              longitude: -123.11026,
+              floors: 1,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Ramp access available for the main art studio",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: nil,
+              contactInfo: nil,
+              shortDescription: "Brown Hall is home to the Art Department at Pacific"
+             ),
+        .init(name: "Drake House",
+              latitude: 45.52165,
+              longitude: -123.11134,
+              floors: 2,
+              studentServiceOffices: ["University of Philosophy"],
+              accessibilityInfo: "Ramp access available",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: nil,
+              contactInfo: nil,
+              shortDescription: "Drake House is a cozy home for the faculty offices for members of the Pacific University Philosophy"
+             ),
+        .init(name: "Campus Public Safety (CPS)",
+              latitude: 45.52180,
+              longitude: -123.11129,
+              floors: 1,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Ramp access available",
+              hoursOpen: "24/7",
+              websiteURL: URL(string: "https://www.pacificu.edu/directory/finance-administration/campus-public-safety"),
+              contactInfo: "503-352-2230",
+              shortDescription: "Campus Public Safety provides safety, first aid and security services for the Pacific University community. Officers respond to all fire, medical and security related calls on campus.  Campus Public Safety Officers are on duty 24-hours a day and are Oregon State Department of Public Safety Standards and Training (DPSST) certified Private Security Professionals."
+             ),
+        .init(name: "Admissions Office",
+              latitude: 45.52243,
+              longitude: -123.11142,
+              floors: 2,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Ramp access available",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: URL(string: "https://www.pacificu.edu/admissions/undergraduate-admissions"),
+              contactInfo: "(503) 352-2218",
+              shortDescription: "Explore our majors and minors, visit our campus, and start your journey to becoming a Pacific University Boxer today."
+             ),
+        .init(name: "Chapman Hall",
+              latitude: 45.52262,
+              longitude: -123.11151,
+              floors: 2,
+              studentServiceOffices: ["Master of Social Work"],
+              accessibilityInfo: "Ramp access available",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: nil,
+              contactInfo: nil,
+              shortDescription: "Chapman Hall currently houses the Master of Social Work program."
+             ),
+        .init(name: "World Language House",
+              latitude: 45.52291,
+              longitude: -123.11127,
+              floors: 2,
+              studentServiceOffices: ["Department of World Languages"],
+              accessibilityInfo: "Ramp access available",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: nil,
+              contactInfo: nil,
+              shortDescription: "he World Languages Building is home to the Department of World Languages, an undergraduate department featuring programs in Chinese, French, Germany, Japanese and Spanish."
+             ),
+        .init(name: "Service Center",
+              latitude: 45.52114,
+              longitude: -123.11117,
+              floors: 1,
+              studentServiceOffices: nil,
+              accessibilityInfo: nil,
+              hoursOpen: "7AM - 5PM",
+              websiteURL: nil,
+              contactInfo: nil,
+              shortDescription: "The Rogers Building houses Pacific's Conference & Event Support Services, as well as its Service Center for copying and printing."
+             ),
+        .init(name: "Outdoor Pursuits",
+              latitude: 45.52110,
+              longitude: -123.11129,
+              floors: 1,
+              studentServiceOffices: ["Outdoor Gear & Trips"],
+              accessibilityInfo: nil,
+              hoursOpen: "10AM - 4PM",
+              websiteURL: URL(string: "https://www.pacificu.edu/directory/student-affairs/outdoor-pursuits"),
+              contactInfo: "outdoors@pacificu.edu",
+              shortDescription: "The Creamery is home to Pacific's Outdoor Pursuits adventure programming — open to students, employees and community members."
+             ),
+        .init(name: "Old College Hall",
+              latitude: 45.52040,
+              longitude: -123.11076,
+              floors: 2,
+              studentServiceOffices: nil,
+              accessibilityInfo: "Ramp access available",
+              hoursOpen: "7AM - 5PM",
+              websiteURL: URL(string: "https://www.pacificu.edu/about/campuses-locations/forest-grove-campus/old-college-hall-museum"),
+              contactInfo: "Private tours for research purposes may be arranged by contacting Martha Calus-McLain '03 at 503-352-2057 or martha@pacificu.edu.",
+              shortDescription: "Old College Hall was Pacific University's first building, constructed in 1850. It has been moved to different locations on the Forest Grove Campus three times and now is home to a small chapel, gathering space, and the University's museum, open the first Wednesday of each month."
              )
+        
     ]
 
 
 
-//    let UCLoc = CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)
-//    let Strain = CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.10723)
-//    let Aucoin = CLLocationCoordinate2D(latitude: 45.52142, longitude: -123.10982)
-//    let Murdock = CLLocationCoordinate2D(latitude: 45.52136, longitude: -123.10679)
-//    let MgGill = CLLocationCoordinate2D(latitude: 45.52113, longitude: -123.10730)
-//    let Berglund = CLLocationCoordinate2D(latitude: 45.52077, longitude: -123.10730)
-//    let Cascade = CLLocationCoordinate2D(latitude: 45.52228, longitude: -123.10796)
-//    let Price = CLLocationCoordinate2D(latitude: 45.52186, longitude: -123.10797)
-//    let TaylorMeade = CLLocationCoordinate2D(latitude: 45.52064, longitude: -123.10787)
-//    let Clark = CLLocationCoordinate2D(latitude: 45.52290, longitude: -123.10899)
-//    let Bookstore = CLLocationCoordinate2D(latitude: 45.52179, longitude: -123.10869)
-//    let Library = CLLocationCoordinate2D(latitude: 45.52144, longitude: -123.10860)
-    let Warner = CLLocationCoordinate2D(latitude: 45.52002, longitude: -123.10942)
-    let Marsh = CLLocationCoordinate2D(latitude: 45.52095, longitude: -123.10946)
-    let Mac = CLLocationCoordinate2D(latitude: 45.52283, longitude: -123.11012)
-    let Walter = CLLocationCoordinate2D(latitude: 45.52218, longitude: -123.10998)
-    let WalterAnnex = CLLocationCoordinate2D(latitude: 45.52199, longitude: -123.11030)
-    let Bates = CLLocationCoordinate2D(latitude: 45.52192, longitude: -123.11058)
-    let Carnegie = CLLocationCoordinate2D(latitude: 45.52021, longitude: -123.11034)
-    let Brown = CLLocationCoordinate2D(latitude: 45.51990, longitude: -123.11026)
-    let Drake = CLLocationCoordinate2D(latitude: 45.52165, longitude: -123.11134)
-    let CPS = CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.11129)
-    let Admissions = CLLocationCoordinate2DMake(45.52243, -123.11142)
-    let Chapman = CLLocationCoordinate2DMake(45.52262, -123.11151)
-    let WLH = CLLocationCoordinate2DMake(45.52291, -123.11127)
-    let ServiceCenter = CLLocationCoordinate2DMake(45.52114, -123.11117)
-    let OutdoorPursuits = CLLocationCoordinate2DMake(45.52110, -123.11129)
-    let OldCollege = CLLocationCoordinate2DMake(45.52040, -123.11076)
     
     
     private func matchCampusLocation(for building: CampusBuilding) -> CampusLocation {
@@ -454,34 +603,6 @@ struct MapView: View {
                         .tag(location)
                 }
             
-//            Marker("University Center", coordinate: UCLoc)
-//            Marker("Strain Science Center", coordinate: Strain)
-//            Marker("Aucoin Hall", coordinate: Aucoin)
-//            Marker("Murdock Hall", coordinate: Murdock)
-//            Marker("McGill Auditorium", coordinate: MgGill)
-//            Marker("Berglund Hall", coordinate: Berglund)
-//            Marker("Cascade Hall", coordinate: Cascade)
-//            Marker("Price Hall", coordinate: Price)
-//            Marker("Taylor-Meade Performing Arts", coordinate: TaylorMeade)
-//            Marker("Clark Hall", coordinate: Clark)
-//            Marker("Pacific Bookstore", coordinate: Bookstore)
-//            Marker("Tran Library", coordinate: Library)
-            Marker("Warner Hall", coordinate: Warner)
-            Marker("Marsh Hall", coordinate: Marsh)
-            Marker("McCormick Hall", coordinate: Mac)
-            Marker("Walter Hall", coordinate: Walter)
-            Marker("Walter Annex", coordinate: WalterAnnex)
-            Marker("Bates House", coordinate: Bates)
-            Marker("Carnegie Hall", coordinate: Carnegie)
-            Marker("Brown Hall", coordinate: Brown)
-            Marker("Drake House", coordinate: Drake)
-            Marker("Campus Public Saftey", coordinate: CPS)
-            Marker("Admissions Office", coordinate: Admissions)
-            Marker("Chapman Hall", coordinate: Chapman)
-            Marker("World Language House", coordinate: WLH)
-            Marker("Service Center", coordinate: ServiceCenter)
-            Marker("Outdoor Pursuits", coordinate: OutdoorPursuits)
-            Marker("Old College Hall", coordinate: OldCollege)
         }.onAppear {
             locationManager.requestPermissionAndStart()
         }.mapControls{
@@ -570,6 +691,7 @@ struct MapView: View {
             }
         }.overlay(alignment: .bottomTrailing) {
             if isNavigating {
+                
                 Button {
                     showDirectionsList = true
                 } label: {
