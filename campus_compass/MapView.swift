@@ -8,9 +8,468 @@
 import SwiftUI
 import MapKit
 
+// MARK: - MKMapView annotation and overlay types (for native clustering)
+
+private final class IndoorLocationAnnotation: NSObject, MKAnnotation {
+    static let clusteringIdentifier = "indoorRooms"
+    let indoorLocation: IndoorLocation
+    var coordinate: CLLocationCoordinate2D { indoorLocation.coordinate }
+    var title: String? { indoorLocation.name }
+    init(_ location: IndoorLocation) {
+        self.indoorLocation = location
+        super.init()
+    }
+}
+
+private final class IndoorLabelAnnotation: NSObject, MKAnnotation {
+    let label: IndoorLabel
+    var coordinate: CLLocationCoordinate2D { label.coordinate }
+    var title: String? { label.text }
+    init(_ label: IndoorLabel) {
+        self.label = label
+        super.init()
+    }
+}
+
+private final class OutdoorPlaceAnnotation: NSObject, MKAnnotation {
+    let name: String
+    let coordinate: CLLocationCoordinate2D
+    var title: String? { name }
+    init(name: String, coordinate: CLLocationCoordinate2D) {
+        self.name = name
+        self.coordinate = coordinate
+        super.init()
+    }
+}
+
+private enum AnnotationReuseId {
+    static let indoor = "indoorLocation"
+    static let outdoor = "outdoorPlace"
+    static let label = "indoorLabel"
+    static let cluster = "indoorCluster"
+}
+
+/// Wraps a polygon or polyline with kind/use so the delegate can style it.
+private final class IndoorShapeOverlay: NSObject, MKOverlay {
+    let shape: MKShape
+    let kind: IndoorKind
+    let use: RoomUse?
+    var coordinate: CLLocationCoordinate2D { shape.coordinate }
+    var boundingMapRect: MKMapRect {
+        if let polygon = shape as? MKPolygon { return polygon.boundingMapRect }
+        if let polyline = shape as? MKPolyline { return polyline.boundingMapRect }
+        if let multi = shape as? MKMultiPolygon {
+            return multi.polygons.map(\.boundingMapRect).reduce(.null) { $0.union($1) }
+        }
+        if let multi = shape as? MKMultiPolyline {
+            return multi.polylines.map(\.boundingMapRect).reduce(.null) { $0.union($1) }
+        }
+        return .null
+    }
+    init(shape: MKShape, kind: IndoorKind, use: RoomUse?) {
+        self.shape = shape
+        self.kind = kind
+        self.use = use
+        super.init()
+    }
+}
+
+// MARK: - MKMapView representable with clustering
+
+private struct MKMapViewRepresentable: UIViewRepresentable {
+    @Binding var region: MKCoordinateRegion
+    var focusedRegion: MKCoordinateRegion?
+    let buildings: [IndoorBuilding]
+    let shapesByFloor: [String: [IndoorShape]]
+    let labelsByFloor: [String: [IndoorLabel]]
+    let locationsByFloor: [String: [IndoorLocation]]
+    var selectedBuildingId: String
+    var selectedFloorId: String
+    @Binding var selectedLocation: IndoorLocation?
+    let outdoorMarkers: [(name: String, coordinate: CLLocationCoordinate2D)]
+    let onRegionChange: (MKCoordinateRegion) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIView(context: Context) -> MKMapView {
+        let mapView = MKMapView()
+        mapView.delegate = context.coordinator
+        mapView.showsUserLocation = true
+        mapView.preferredConfiguration = MKStandardMapConfiguration()
+        mapView.region = region
+        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.indoor)
+        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.outdoor)
+        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.label)
+        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.cluster)
+        return mapView
+    }
+
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        if let focused = focusedRegion, !regionEquals(focused, context.coordinator.lastAppliedRegion) {
+            context.coordinator.lastAppliedRegion = focused
+            mapView.setRegion(focused, animated: true)
+        }
+        let activeShapes = shapesByFloor[selectedFloorId] ?? []
+        let activeLocations = activeIndoorLocations(context.coordinator)
+        let activeLabels = activeAreaLabels(context.coordinator)
+        let showIndoor = shouldShowIndoorLayer(region: mapView.region)
+
+        context.coordinator.syncOverlays(mapView: mapView, shapes: activeShapes)
+        context.coordinator.syncAnnotations(
+            mapView: mapView,
+            indoorLocations: showIndoor ? activeLocations : [],
+            labels: showIndoor ? activeLabels : [],
+            outdoor: outdoorMarkers
+        )
+    }
+
+    private func regionEquals(_ a: MKCoordinateRegion?, _ b: MKCoordinateRegion?) -> Bool {
+        guard let a, let b else { return a == nil && b == nil }
+        return a.center.latitude == b.center.latitude && a.center.longitude == b.center.longitude
+            && a.span.latitudeDelta == b.span.latitudeDelta && a.span.longitudeDelta == b.span.longitudeDelta
+    }
+
+    private func shouldShowIndoorLayer(region: MKCoordinateRegion) -> Bool {
+        let halfSpan = region.span.longitudeDelta / 2
+        let left = CLLocationCoordinate2D(latitude: region.center.latitude, longitude: region.center.longitude - halfSpan)
+        let right = CLLocationCoordinate2D(latitude: region.center.latitude, longitude: region.center.longitude + halfSpan)
+        let widthMeters = MKMapPoint(left).distance(to: MKMapPoint(right))
+        return widthMeters < 1200
+    }
+
+    private func activeIndoorLocations(_ coordinator: Coordinator) -> [IndoorLocation] {
+        let locations = locationsByFloor[selectedFloorId] ?? []
+        var seen = Set<String>()
+        return locations.filter { !$0.isArea }.filter { loc in
+            let name = loc.name.lowercased()
+            if name.contains("server room") { return false }
+            let lat = (loc.coordinate.latitude * 100000).rounded() / 100000
+            let lon = (loc.coordinate.longitude * 100000).rounded() / 100000
+            let key = "\(name)-\(lat)-\(lon)"
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
+    }
+
+    private func activeAreaLabels(_ coordinator: Coordinator) -> [IndoorLabel] {
+        let labels = labelsByFloor[selectedFloorId] ?? []
+        let locationNames = Set(activeIndoorLocations(coordinator).map { $0.name.lowercased() })
+        var seen = Set<String>()
+        return labels.filter { label in
+            guard label.kind == .area else { return false }
+            let name = label.text.lowercased()
+            if name.contains("server room") { return false }
+            if locationNames.contains(name) { return false }
+            let lat = (label.coordinate.latitude * 100000).rounded() / 100000
+            let lon = (label.coordinate.longitude * 100000).rounded() / 100000
+            let key = "\(label.kind)-\(name)-\(lat)-\(lon)"
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
+    }
+
+    class Coordinator: NSObject, MKMapViewDelegate {
+        var parent: MKMapViewRepresentable
+        var lastAppliedRegion: MKCoordinateRegion?
+        var overlayInfo: [ObjectIdentifier: (IndoorKind, RoomUse?)] = [:]
+        var indoorLocationAnnotations: [String: IndoorLocationAnnotation] = [:]
+        var labelAnnotations: [String: IndoorLabelAnnotation] = [:]
+        var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
+
+        init(_ parent: MKMapViewRepresentable) {
+            self.parent = parent
+        }
+
+        func syncOverlays(mapView: MKMapView, shapes: [IndoorShape]) {
+            let sorted = shapes.sorted { drawOrder(for: $0.kind) < drawOrder(for: $1.kind) }
+            var toAdd: [IndoorShapeOverlay] = []
+            for item in sorted {
+                if let polygon = item.shape as? MKPolygon {
+                    toAdd.append(IndoorShapeOverlay(shape: polygon, kind: item.kind, use: item.use))
+                } else if let polyline = item.shape as? MKPolyline, shouldRenderLine(for: item.kind) {
+                    toAdd.append(IndoorShapeOverlay(shape: polyline, kind: item.kind, use: item.use))
+                } else if let point = item.shape as? MKPointAnnotation, shouldRenderPoint(for: item.kind, use: item.use) {
+                    continue
+                } else if let multi = item.shape as? MKMultiPolygon {
+                    for polygon in multi.polygons {
+                        toAdd.append(IndoorShapeOverlay(shape: polygon, kind: item.kind, use: item.use))
+                    }
+                } else if let multi = item.shape as? MKMultiPolyline, shouldRenderLine(for: item.kind) {
+                    for polyline in multi.polylines {
+                        toAdd.append(IndoorShapeOverlay(shape: polyline, kind: item.kind, use: item.use))
+                    }
+                }
+            }
+            mapView.removeOverlays(mapView.overlays)
+            overlayInfo.removeAll()
+            for overlay in toAdd {
+                mapView.addOverlay(overlay)
+                overlayInfo[ObjectIdentifier(overlay)] = (overlay.kind, overlay.use)
+            }
+        }
+
+        func syncAnnotations(mapView: MKMapView, indoorLocations: [IndoorLocation], labels: [IndoorLabel], outdoor: [(name: String, coordinate: CLLocationCoordinate2D)]) {
+            var toAdd: [MKAnnotation] = []
+            var toRemove: [MKAnnotation] = []
+
+            var desiredIndoorIds = Set<String>()
+            for loc in indoorLocations {
+                desiredIndoorIds.insert(loc.id)
+                if indoorLocationAnnotations[loc.id] == nil {
+                    let annotation = IndoorLocationAnnotation(loc)
+                    indoorLocationAnnotations[loc.id] = annotation
+                    toAdd.append(annotation)
+                }
+            }
+            let removedIndoor = Set(indoorLocationAnnotations.keys).subtracting(desiredIndoorIds)
+            for id in removedIndoor {
+                if let annotation = indoorLocationAnnotations.removeValue(forKey: id) {
+                    toRemove.append(annotation)
+                }
+            }
+
+            var desiredLabelIds = Set<String>()
+            for label in labels {
+                desiredLabelIds.insert(label.id)
+                if labelAnnotations[label.id] == nil {
+                    let annotation = IndoorLabelAnnotation(label)
+                    labelAnnotations[label.id] = annotation
+                    toAdd.append(annotation)
+                }
+            }
+            let removedLabels = Set(labelAnnotations.keys).subtracting(desiredLabelIds)
+            for id in removedLabels {
+                if let annotation = labelAnnotations.removeValue(forKey: id) {
+                    toRemove.append(annotation)
+                }
+            }
+
+            var desiredOutdoorIds = Set<String>()
+            for m in outdoor {
+                let id = outdoorKey(name: m.name, coordinate: m.coordinate)
+                desiredOutdoorIds.insert(id)
+                if outdoorAnnotations[id] == nil {
+                    let annotation = OutdoorPlaceAnnotation(name: m.name, coordinate: m.coordinate)
+                    outdoorAnnotations[id] = annotation
+                    toAdd.append(annotation)
+                }
+            }
+            let removedOutdoor = Set(outdoorAnnotations.keys).subtracting(desiredOutdoorIds)
+            for id in removedOutdoor {
+                if let annotation = outdoorAnnotations.removeValue(forKey: id) {
+                    toRemove.append(annotation)
+                }
+            }
+
+            if !toRemove.isEmpty {
+                mapView.removeAnnotations(toRemove)
+            }
+            if !toAdd.isEmpty {
+                mapView.addAnnotations(toAdd)
+            }
+        }
+
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if annotation is MKUserLocation { return nil }
+            if let cluster = annotation as? MKClusterAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.cluster, for: cluster) as? MKMarkerAnnotationView
+                view?.markerTintColor = .systemGray
+                view?.glyphText = "\(cluster.memberAnnotations.count)"
+                view?.glyphImage = nil
+                view?.glyphTintColor = .white
+                view?.clusteringIdentifier = nil
+                view?.canShowCallout = false
+                return view
+            }
+            if let indoor = annotation as? IndoorLocationAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.indoor, for: indoor) as? MKMarkerAnnotationView
+                view?.markerTintColor = markerColor(for: indoor.indoorLocation)
+                if let symbol = markerSymbol(for: indoor.indoorLocation) {
+                    view?.glyphText = nil
+                    view?.glyphImage = UIImage(systemName: symbol)
+                } else {
+                    view?.glyphImage = nil
+                    view?.glyphTintColor = .white
+                    view?.glyphText = nil
+                }
+                view?.clusteringIdentifier = IndoorLocationAnnotation.clusteringIdentifier
+                view?.canShowCallout = false
+                return view
+            }
+            if let labelAnn = annotation as? IndoorLabelAnnotation {
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.label) as? MKMarkerAnnotationView
+                if view == nil {
+                    view = MKMarkerAnnotationView(annotation: nil, reuseIdentifier: AnnotationReuseId.label)
+                    view?.isEnabled = false
+                }
+                view?.annotation = labelAnn
+                view?.glyphText = labelAnn.label.text
+                view?.glyphImage = nil
+                view?.markerTintColor = UIColor(red: 0.96, green: 0.96, blue: 0.98, alpha: 0.9)
+                view?.glyphTintColor = UIColor(red: 0.28, green: 0.28, blue: 0.32, alpha: 1)
+                view?.clusteringIdentifier = nil
+                view?.canShowCallout = false
+                return view
+            }
+            if let outdoor = annotation as? OutdoorPlaceAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.outdoor, for: outdoor) as? MKMarkerAnnotationView
+                view?.markerTintColor = .systemBlue
+                view?.glyphText = nil
+                view?.glyphImage = nil
+                view?.glyphTintColor = nil
+                view?.clusteringIdentifier = nil
+                view?.canShowCallout = false
+                return view
+            }
+            return nil
+        }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            guard let shapeOverlay = overlay as? IndoorShapeOverlay else {
+                return MKOverlayRenderer(overlay: overlay)
+            }
+            if let polygon = shapeOverlay.shape as? MKPolygon {
+                let renderer = MKPolygonRenderer(polygon: polygon)
+                let (kind, use) = overlayInfo[ObjectIdentifier(shapeOverlay)] ?? (.unknown, nil)
+                renderer.fillColor = fillColor(for: kind, use: use)
+                renderer.strokeColor = strokeColor(for: kind, use: use)
+                renderer.lineWidth = lineWidth(for: kind, use: use)
+                return renderer
+            }
+            if let polyline = shapeOverlay.shape as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                let (kind, use) = overlayInfo[ObjectIdentifier(shapeOverlay)] ?? (.unknown, nil)
+                renderer.strokeColor = strokeColor(for: kind, use: use)
+                renderer.lineWidth = lineWidth(for: kind, use: use)
+                return renderer
+            }
+            return MKOverlayRenderer(overlay: overlay)
+        }
+
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            guard let ann = view.annotation as? IndoorLocationAnnotation else {
+                if view.annotation is MKClusterAnnotation {
+                    mapView.deselectAnnotation(view.annotation, animated: true)
+                }
+                return
+            }
+            parent.selectedLocation = ann.indoorLocation
+            mapView.deselectAnnotation(view.annotation, animated: true)
+        }
+
+        func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            parent.region = mapView.region
+            parent.onRegionChange(mapView.region)
+        }
+
+        func mapView(_ mapView: MKMapView, clusterAnnotationForMemberAnnotations memberAnnotations: [MKAnnotation]) -> MKClusterAnnotation {
+            MKClusterAnnotation(memberAnnotations: memberAnnotations)
+        }
+
+        private func outdoorKey(name: String, coordinate: CLLocationCoordinate2D) -> String {
+            let lat = (coordinate.latitude * 100000).rounded() / 100000
+            let lon = (coordinate.longitude * 100000).rounded() / 100000
+            return "\(name.lowercased())-\(lat)-\(lon)"
+        }
+
+        private func drawOrder(for kind: IndoorKind) -> Int {
+            switch kind {
+            case .area: return 0
+            case .hallway: return 1
+            case .room: return 2
+            case .object: return 3
+            case .window: return 4
+            case .wall: return 5
+            case .door: return 6
+            case .outline: return 7
+            case .unknown: return 8
+            }
+        }
+
+        private func strokeColor(for kind: IndoorKind, use: RoomUse?) -> UIColor {
+            switch kind {
+            case .outline: return .systemBlue
+            case .wall: return .label
+            case .window: return .cyan
+            case .door: return .systemGreen
+            case .room, .hallway, .area, .object: return .gray
+            case .unknown: return .gray
+            }
+        }
+
+        private func fillColor(for kind: IndoorKind, use: RoomUse?) -> UIColor {
+            switch kind {
+            case .room, .hallway, .area, .object:
+                return UIColor.gray.withAlphaComponent(0.12)
+            default:
+                return .clear
+            }
+        }
+
+        private func lineWidth(for kind: IndoorKind, use: RoomUse?) -> CGFloat {
+            switch kind {
+            case .outline: return 0.8
+            case .wall: return 1.6
+            case .door: return 2.2
+            case .window: return 1.2
+            case .room, .hallway, .area, .object: return 0.8
+            case .unknown: return 1.0
+            }
+        }
+
+        private func shouldRenderPoint(for kind: IndoorKind, use: RoomUse?) -> Bool {
+            if use == .stairs || use == .elevator { return false }
+            switch kind {
+            case .door, .object: return true
+            default: return false
+            }
+        }
+
+        private func shouldRenderLine(for kind: IndoorKind) -> Bool {
+            switch kind {
+            case .wall, .window, .door, .outline: return true
+            default: return false
+            }
+        }
+
+        private func markerColor(for location: IndoorLocation) -> UIColor {
+            switch location.use {
+            case .bathroom: return UIColor(red: 0.49, green: 0.69, blue: 0.92, alpha: 1)
+            case .classroom: return UIColor(red: 0.62, green: 0.55, blue: 0.86, alpha: 1)
+            case .stairs: return UIColor(red: 0.78, green: 0.62, blue: 0.35, alpha: 1)
+            case .elevator: return UIColor(red: 0.36, green: 0.69, blue: 0.46, alpha: 1)
+            case .none:
+                if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
+                    return UIColor(red: 0.86, green: 0.55, blue: 0.25, alpha: 1)
+                }
+                return UIColor(red: 0.35, green: 0.35, blue: 0.4, alpha: 1)
+            }
+        }
+
+        private func markerSymbol(for location: IndoorLocation) -> String? {
+            if location.use == .bathroom { return "figure.stand" }
+            if location.use == .stairs { return "stairs" }
+            if location.use == .elevator { return "arrow.up.and.down" }
+            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
+                return "cup.and.saucer.fill"
+            }
+            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("lab") }) {
+                return "testtube.2"
+            }
+            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("book") }) {
+                return "book.fill"
+            }
+            return nil
+        }
+    }
+}
+
 struct MapView: View {
     @StateObject private var locationManager = LocationManager()
-    @State private var camera: MapCameraPosition = .automatic
     @State private var hasCenteredOnUser = false
     @State private var indoorBuildings: [IndoorBuilding] = []
     @State private var indoorShapesByFloor: [String: [IndoorShape]] = [:]
@@ -20,45 +479,41 @@ struct MapView: View {
     @State private var selectedFloorId: String = ""
     @State private var selectedLocation: IndoorLocation? = nil
     @State private var detailDetent: PresentationDetent = .height(220)
+    @State private var mapRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 45.521, longitude: -123.108),
+        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+    )
+    @State private var focusedRegion: MKCoordinateRegion?
 
-    let UCLoc = CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)
-    let Strain = CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.10723)
-    let Aucoin = CLLocationCoordinate2D(latitude: 45.52142, longitude: -123.10982)
-    let Murdock = CLLocationCoordinate2D(latitude: 45.52136, longitude: -123.10679)
-    let MgGill = CLLocationCoordinate2D(latitude: 45.52113, longitude: -123.10730)
-    let Berglund = CLLocationCoordinate2D(latitude: 45.52077, longitude: -123.10730)
-    let Cascade = CLLocationCoordinate2D(latitude: 45.52228, longitude: -123.10796)
-    let Price = CLLocationCoordinate2D(latitude: 45.52186, longitude: -123.10797)
-    let TaylorMeade = CLLocationCoordinate2D(latitude: 45.52064, longitude: -123.10787)
-    let Clark = CLLocationCoordinate2D(latitude: 45.52290, longitude: -123.10899)
-    let Bookstore = CLLocationCoordinate2D(latitude: 45.52179, longitude: -123.10869)
-    let Library = CLLocationCoordinate2D(latitude: 45.52144, longitude: -123.10860)
-    let Warner = CLLocationCoordinate2D(latitude: 45.52002, longitude: -123.10942)
-    let Marsh = CLLocationCoordinate2D(latitude: 45.52095, longitude: -123.10946)
-    let Mac = CLLocationCoordinate2D(latitude: 45.52283, longitude: -123.11012)
-    let Walter = CLLocationCoordinate2D(latitude: 45.52218, longitude: -123.10998)
-    let WalterAnnex = CLLocationCoordinate2D(latitude: 45.52199, longitude: -123.11030)
-    let Bates = CLLocationCoordinate2D(latitude: 45.52192, longitude: -123.11058)
-    let Carnegie = CLLocationCoordinate2D(latitude: 45.52021, longitude: -123.11034)
-    let Brown = CLLocationCoordinate2D(latitude: 45.51990, longitude: -123.11026)
-    let Drake = CLLocationCoordinate2D(latitude: 45.52165, longitude: -123.11134)
-    
-    
-    
-    
+    private let outdoorMarkers: [(name: String, coordinate: CLLocationCoordinate2D)] = [
+        ("University Center", CLLocationCoordinate2D(latitude: 45.52207, longitude: -123.10894)),
+        ("Strain Science Center", CLLocationCoordinate2D(latitude: 45.52180, longitude: -123.10723)),
+        ("Aucoin Hall", CLLocationCoordinate2D(latitude: 45.52142, longitude: -123.10982)),
+        ("Murdock Hall", CLLocationCoordinate2D(latitude: 45.52136, longitude: -123.10679)),
+    ]
+
     var body: some View {
-        Map(position: $camera) {
-            UserAnnotation()
-            
-            Marker("University Center", coordinate: UCLoc)
-            Marker("Strain Science Center", coordinate: Strain)
-            Marker("Aucoin Hall", coordinate: Aucoin)
-            Marker("Murdock Hall", coordinate: Murdock)
-
-            IndoorMapLayer(shapes: activeIndoorShapes)
-            IndoorLocationMarkersLayer(locations: activeIndoorLocations, selection: $selectedLocation)
-            IndoorAreaLabelsLayer(labels: activeAreaLabels)
-        }
+        MKMapViewRepresentable(
+            region: $mapRegion,
+            focusedRegion: focusedRegion,
+            buildings: indoorBuildings,
+            shapesByFloor: indoorShapesByFloor,
+            labelsByFloor: indoorLabelsByFloor,
+            locationsByFloor: indoorLocationsByFloor,
+            selectedBuildingId: selectedBuildingId,
+            selectedFloorId: selectedFloorId,
+            selectedLocation: $selectedLocation,
+            outdoorMarkers: outdoorMarkers,
+            onRegionChange: { newRegion in
+                let halfSpan = newRegion.span.longitudeDelta / 2
+                let left = CLLocationCoordinate2D(latitude: newRegion.center.latitude, longitude: newRegion.center.longitude - halfSpan)
+                let right = CLLocationCoordinate2D(latitude: newRegion.center.latitude, longitude: newRegion.center.longitude + halfSpan)
+                let widthMeters = MKMapPoint(left).distance(to: MKMapPoint(right))
+                if widthMeters >= 1200 {
+                    selectedLocation = nil
+                }
+            }
+        )
         .task {
             let data = IndoorDataLoader.loadCampusIndoorData()
             indoorBuildings = data.buildings
@@ -99,14 +554,10 @@ struct MapView: View {
         }
         .onReceive(locationManager.$location) { location in
             guard let location, !hasCenteredOnUser else { return }
-
             hasCenteredOnUser = true
-
-            camera = .region(
-                MKCoordinateRegion(
-                    center: location.coordinate,
-                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                )
+            focusedRegion = MKCoordinateRegion(
+                center: location.coordinate,
+                span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
             )
         }
         .ignoresSafeArea()
@@ -120,49 +571,6 @@ struct MapView: View {
             if newValue != nil {
                 detailDetent = .height(220)
             }
-        }
-    }
-
-    private var activeIndoorShapes: [IndoorShape] {
-        let shapes = indoorShapesByFloor[selectedFloorId] ?? []
-        return shapes.sorted { drawOrder(for: $0.kind) < drawOrder(for: $1.kind) }
-    }
-
-    private var activeIndoorLabels: [IndoorLabel] {
-        let labels = indoorLabelsByFloor[selectedFloorId] ?? []
-        var seen = Set<String>()
-        return labels.filter { label in
-            let lat = (label.coordinate.latitude * 100000).rounded() / 100000
-            let lon = (label.coordinate.longitude * 100000).rounded() / 100000
-            let key = "\(label.kind)-\(label.text.lowercased())-\(lat)-\(lon)"
-            if seen.contains(key) { return false }
-            seen.insert(key)
-            return true
-        }
-    }
-
-    private var activeAreaLabels: [IndoorLabel] {
-        let locationNames = Set(activeIndoorLocations.map { $0.name.lowercased() })
-        return activeIndoorLabels.filter { label in
-            guard label.kind == .area else { return false }
-            let name = label.text.lowercased()
-            if name.contains("server room") { return false }
-            return !locationNames.contains(name)
-        }
-    }
-
-    private var activeIndoorLocations: [IndoorLocation] {
-        let locations = indoorLocationsByFloor[selectedFloorId] ?? []
-        var seen = Set<String>()
-        return locations.filter { !$0.isArea }.filter { location in
-            let name = location.name.lowercased()
-            if name.contains("server room") { return false }
-            let lat = (location.coordinate.latitude * 100000).rounded() / 100000
-            let lon = (location.coordinate.longitude * 100000).rounded() / 100000
-            let key = "\(location.name.lowercased())-\(lat)-\(lon)"
-            if seen.contains(key) { return false }
-            seen.insert(key)
-            return true
         }
     }
 
@@ -209,10 +617,7 @@ struct MapView: View {
         guard rect.size.width > 0, rect.size.height > 0 else { return }
 
         let padded = rect.insetBy(dx: -rect.size.width * 0.25, dy: -rect.size.height * 0.25)
-        let region = MKCoordinateRegion(padded)
-        withAnimation(.easeInOut(duration: 0.35)) {
-            camera = .region(region)
-        }
+        focusedRegion = MKCoordinateRegion(padded)
     }
 
     private func mapRect(for floorId: String) -> MKMapRect? {
@@ -256,199 +661,6 @@ struct MapView: View {
         return combined
     }
 
-    private func drawOrder(for kind: IndoorKind) -> Int {
-        switch kind {
-        case .area: return 0
-        case .hallway: return 1
-        case .room: return 2
-        case .object: return 3
-        case .window: return 4
-        case .wall: return 5
-        case .door: return 6
-        case .outline: return 7
-        case .unknown: return 8
-        }
-    }
-}
-
-private struct IndoorMapLayer: MapContent {
-    let shapes: [IndoorShape]
-
-    var body: some MapContent {
-        ForEach(shapes) { item in
-            if let polygon = item.shape as? MKPolygon {
-                MapPolygon(polygon)
-                    .foregroundStyle(fillColor(for: item.kind, use: item.use))
-                    .stroke(strokeColor(for: item.kind, use: item.use),
-                            lineWidth: lineWidth(for: item.kind, use: item.use))
-            } else if let polyline = item.shape as? MKPolyline {
-                if shouldRenderLine(for: item.kind) {
-                    MapPolyline(polyline)
-                        .stroke(strokeColor(for: item.kind, use: item.use),
-                                lineWidth: lineWidth(for: item.kind, use: item.use))
-                }
-            } else if let point = item.shape as? MKPointAnnotation, shouldRenderPoint(for: item.kind, use: item.use) {
-                Annotation("", coordinate: point.coordinate) {
-                    Circle()
-                        .fill(strokeColor(for: item.kind, use: item.use))
-                        .frame(width: 6, height: 6)
-                }
-            }
-        }
-    }
-
-    private func strokeColor(for kind: IndoorKind, use: RoomUse?) -> Color {
-        switch kind {
-        case .outline: return .blue
-        case .wall: return .primary
-        case .window: return .cyan
-        case .door: return .green
-        case .room, .hallway, .area, .object: return .gray
-        case .unknown: return .gray
-        }
-    }
-
-    private func fillColor(for kind: IndoorKind, use: RoomUse?) -> Color {
-        switch kind {
-        case .room, .hallway, .area, .object:
-            return Color.gray.opacity(0.12)
-        default:
-            return .clear
-        }
-    }
-
-    private func lineWidth(for kind: IndoorKind, use: RoomUse?) -> CGFloat {
-        switch kind {
-        case .outline: return 0.8
-        case .wall: return 1.6
-        case .door: return 2.2
-        case .window: return 1.2
-        case .room, .hallway, .area, .object: return 0.8
-        case .unknown: return 1.0
-        }
-    }
-
-    private func shouldRenderPoint(for kind: IndoorKind, use: RoomUse?) -> Bool {
-        if use == .stairs || use == .elevator {
-            return false
-        }
-        switch kind {
-        case .door, .object: return true
-        default: return false
-        }
-    }
-
-    private func shouldRenderLine(for kind: IndoorKind) -> Bool {
-        switch kind {
-        case .wall, .window, .door, .outline:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func fillColor(for use: RoomUse) -> Color {
-        Color.gray.opacity(0.12)
-    }
-
-    private func accentColor(for use: RoomUse) -> Color {
-        Color.gray
-    }
-}
-
-private struct IndoorLocationMarkersLayer: MapContent {
-    let locations: [IndoorLocation]
-    @Binding var selection: IndoorLocation?
-
-    var body: some MapContent {
-        ForEach(locations) { location in
-            Annotation("", coordinate: location.coordinate) {
-                let isSelected = selection?.id == location.id
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                        selection = location
-                    }
-                } label: {
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle()
-                                .fill(markerColor(for: location))
-                                .frame(width: isSelected ? 36 : 28,
-                                       height: isSelected ? 36 : 28)
-                                .shadow(color: Color.black.opacity(0.2), radius: 3, x: 0, y: 2)
-                            Image(systemName: markerSymbol(for: location))
-                                .font(.system(size: isSelected ? 16 : 12, weight: .bold))
-                                .foregroundStyle(Color.white)
-                        }
-                        if isSelected {
-                            Text(location.name)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.black.opacity(0.7))
-                                )
-                        }
-                    }
-                    .padding(6)
-                }
-                .buttonStyle(.plain)
-                .contentShape(Rectangle())
-            }
-        }
-    }
-
-    private func markerColor(for location: IndoorLocation) -> Color {
-        switch location.use {
-        case .bathroom: return Color(red: 0.49, green: 0.69, blue: 0.92)
-        case .classroom: return Color(red: 0.62, green: 0.55, blue: 0.86)
-        case .stairs: return Color(red: 0.78, green: 0.62, blue: 0.35)
-        case .elevator: return Color(red: 0.36, green: 0.69, blue: 0.46)
-        case .none:
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
-                return Color(red: 0.86, green: 0.55, blue: 0.25)
-            }
-            return Color(red: 0.35, green: 0.35, blue: 0.4)
-        }
-    }
-
-    private func markerSymbol(for location: IndoorLocation) -> String {
-        if location.use == .bathroom { return "figure.stand" }
-        if location.use == .stairs { return "stairs" }
-        if location.use == .elevator { return "arrow.up.and.down" }
-        if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
-            return "cup.and.saucer.fill"
-        }
-        if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("lab") }) {
-            return "testtube.2"
-        }
-        if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("book") }) {
-            return "book.fill"
-        }
-        return "mappin.circle.fill"
-    }
-}
-
-private struct IndoorAreaLabelsLayer: MapContent {
-    let labels: [IndoorLabel]
-
-    var body: some MapContent {
-        ForEach(labels) { label in
-            Annotation("", coordinate: label.coordinate) {
-                Text(label.text)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color(red: 0.28, green: 0.28, blue: 0.32))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(red: 0.96, green: 0.96, blue: 0.98, opacity: 0.9))
-                    )
-            }
-        }
-    }
 }
 
 private struct IndoorLocationDetailView: View {
