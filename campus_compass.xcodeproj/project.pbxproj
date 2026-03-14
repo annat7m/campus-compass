@@ -263,10 +263,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "campus-compass-Info.plist";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Campus Compass uses your location to keep your position updated while you navigate on campus.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Campus Compass uses your location to show your position on campus maps.";
+					INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Campus Compass uses your location to keep your position updated while you navigate on campus.";
+					INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Campus Compass uses your location to show your position on campus maps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -301,10 +299,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "campus-compass-Info.plist";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Campus Compass uses your location to keep your position updated while you navigate on campus.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Campus Compass uses your location to show your position on campus maps.";
+					INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Campus Compass uses your location to keep your position updated while you navigate on campus.";
+					INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Campus Compass uses your location to show your position on campus maps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

@@ -186,12 +186,11 @@ private final class IndoorLabelAnnotation: NSObject, MKAnnotation {
 }
 
 private final class OutdoorPlaceAnnotation: NSObject, MKAnnotation {
-    let name: String
-    let coordinate: CLLocationCoordinate2D
-    var title: String? { name }
-    init(name: String, coordinate: CLLocationCoordinate2D) {
-        self.name = name
-        self.coordinate = coordinate
+    let campusLocation: CampusLocation
+    var coordinate: CLLocationCoordinate2D { campusLocation.coordinate }
+    var title: String? { campusLocation.name }
+    init(_ campusLocation: CampusLocation) {
+        self.campusLocation = campusLocation
         super.init()
     }
 }
@@ -228,19 +227,30 @@ private final class IndoorShapeOverlay: NSObject, MKOverlay {
     }
 }
 
+private final class RouteOverlay: NSObject, MKOverlay {
+    let polyline: MKPolyline
+    var coordinate: CLLocationCoordinate2D { polyline.coordinate }
+    var boundingMapRect: MKMapRect { polyline.boundingMapRect }
+
+    init(polyline: MKPolyline) {
+        self.polyline = polyline
+        super.init()
+    }
+}
+
 // MARK: - MKMapView representable with clustering
 
 private struct MKMapViewRepresentable: UIViewRepresentable {
     @Binding var region: MKCoordinateRegion
     var focusedRegion: MKCoordinateRegion?
-    let buildings: [IndoorBuilding]
     let shapesByFloor: [String: [IndoorShape]]
     let labelsByFloor: [String: [IndoorLabel]]
     let locationsByFloor: [String: [IndoorLocation]]
-    var selectedBuildingId: String
     var selectedFloorId: String
     @Binding var selectedLocation: IndoorLocation?
-    let outdoorMarkers: [(name: String, coordinate: CLLocationCoordinate2D)]
+    let outdoorLocations: [CampusLocation]
+    let routePolyline: MKPolyline?
+    let onOutdoorSelection: (CampusLocation) -> Void
     let onRegionChange: (MKCoordinateRegion) -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -261,21 +271,26 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     }
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
+        context.coordinator.parent = self
         if let focused = focusedRegion, !regionEquals(focused, context.coordinator.lastAppliedRegion) {
             context.coordinator.lastAppliedRegion = focused
             mapView.setRegion(focused, animated: true)
         }
         let activeShapes = shapesByFloor[selectedFloorId] ?? []
-        let activeLocations = activeIndoorLocations(context.coordinator)
-        let activeLabels = activeAreaLabels(context.coordinator)
+        let activeLocations = activeIndoorLocations()
+        let activeLabels = activeAreaLabels()
         let showIndoor = shouldShowIndoorLayer(region: mapView.region)
 
-        context.coordinator.syncOverlays(mapView: mapView, shapes: activeShapes)
+        context.coordinator.syncOverlays(
+            mapView: mapView,
+            shapes: activeShapes,
+            routePolyline: routePolyline
+        )
         context.coordinator.syncAnnotations(
             mapView: mapView,
             indoorLocations: showIndoor ? activeLocations : [],
             labels: showIndoor ? activeLabels : [],
-            outdoor: outdoorMarkers
+            outdoor: outdoorLocations
         )
     }
 
@@ -293,7 +308,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         return widthMeters < 1200
     }
 
-    private func activeIndoorLocations(_ coordinator: Coordinator) -> [IndoorLocation] {
+    private func activeIndoorLocations() -> [IndoorLocation] {
         let locations = locationsByFloor[selectedFloorId] ?? []
         var seen = Set<String>()
         return locations.filter { !$0.isArea }.filter { loc in
@@ -308,9 +323,9 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
     }
 
-    private func activeAreaLabels(_ coordinator: Coordinator) -> [IndoorLabel] {
+    private func activeAreaLabels() -> [IndoorLabel] {
         let labels = labelsByFloor[selectedFloorId] ?? []
-        let locationNames = Set(activeIndoorLocations(coordinator).map { $0.name.lowercased() })
+        let locationNames = Set(activeIndoorLocations().map { $0.name.lowercased() })
         var seen = Set<String>()
         return labels.filter { label in
             guard label.kind == .area else { return false }
@@ -338,7 +353,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             self.parent = parent
         }
 
-        func syncOverlays(mapView: MKMapView, shapes: [IndoorShape]) {
+        func syncOverlays(mapView: MKMapView, shapes: [IndoorShape], routePolyline: MKPolyline?) {
             let sorted = shapes.sorted { drawOrder(for: $0.kind) < drawOrder(for: $1.kind) }
             var toAdd: [IndoorShapeOverlay] = []
             for item in sorted {
@@ -364,9 +379,12 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 mapView.addOverlay(overlay)
                 overlayInfo[ObjectIdentifier(overlay)] = (overlay.kind, overlay.use)
             }
+            if let routePolyline {
+                mapView.addOverlay(RouteOverlay(polyline: routePolyline))
+            }
         }
 
-        func syncAnnotations(mapView: MKMapView, indoorLocations: [IndoorLocation], labels: [IndoorLabel], outdoor: [(name: String, coordinate: CLLocationCoordinate2D)]) {
+        func syncAnnotations(mapView: MKMapView, indoorLocations: [IndoorLocation], labels: [IndoorLabel], outdoor: [CampusLocation]) {
             var toAdd: [MKAnnotation] = []
             var toRemove: [MKAnnotation] = []
 
@@ -403,11 +421,11 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             }
 
             var desiredOutdoorIds = Set<String>()
-            for m in outdoor {
-                let id = outdoorKey(name: m.name, coordinate: m.coordinate)
+            for location in outdoor {
+                let id = outdoorKey(name: location.name, coordinate: location.coordinate)
                 desiredOutdoorIds.insert(id)
                 if outdoorAnnotations[id] == nil {
-                    let annotation = OutdoorPlaceAnnotation(name: m.name, coordinate: m.coordinate)
+                    let annotation = OutdoorPlaceAnnotation(location)
                     outdoorAnnotations[id] = annotation
                     toAdd.append(annotation)
                 }
@@ -483,6 +501,12 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let routeOverlay = overlay as? RouteOverlay {
+                let renderer = MKPolylineRenderer(polyline: routeOverlay.polyline)
+                renderer.strokeColor = .systemBlue
+                renderer.lineWidth = 6
+                return renderer
+            }
             guard let shapeOverlay = overlay as? IndoorShapeOverlay else {
                 return MKOverlayRenderer(overlay: overlay)
             }
@@ -505,13 +529,20 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
-            guard let ann = view.annotation as? IndoorLocationAnnotation else {
-                if view.annotation is MKClusterAnnotation {
-                    mapView.deselectAnnotation(view.annotation, animated: true)
-                }
+            if let ann = view.annotation as? IndoorLocationAnnotation {
+                parent.selectedLocation = ann.indoorLocation
+                mapView.deselectAnnotation(view.annotation, animated: true)
                 return
             }
-            parent.selectedLocation = ann.indoorLocation
+            if let ann = view.annotation as? OutdoorPlaceAnnotation {
+                parent.onOutdoorSelection(ann.campusLocation)
+                mapView.deselectAnnotation(view.annotation, animated: true)
+                return
+            }
+            if view.annotation is MKClusterAnnotation {
+                mapView.deselectAnnotation(view.annotation, animated: true)
+                return
+            }
             mapView.deselectAnnotation(view.annotation, animated: true)
         }
 
@@ -637,10 +668,21 @@ struct MapView: View {
     @State private var navigationDestination: CampusLocation?
     
     @StateObject private var locationManager = LocationManager()
-    @State private var camera: MapCameraPosition = .automatic
-    @State private var hasCenteredOnUser = false   // <- NEW
-    @State private var selectedLocation: CampusLocation?
-    @Namespace private var mapScope
+    @State private var hasCenteredOnUser = false
+    @State private var selectedOutdoorLocation: CampusLocation?
+    @State private var indoorBuildings: [IndoorBuilding] = []
+    @State private var indoorShapesByFloor: [String: [IndoorShape]] = [:]
+    @State private var indoorLabelsByFloor: [String: [IndoorLabel]] = [:]
+    @State private var indoorLocationsByFloor: [String: [IndoorLocation]] = [:]
+    @State private var selectedBuildingId: String = ""
+    @State private var selectedFloorId: String = ""
+    @State private var selectedIndoorLocation: IndoorLocation?
+    @State private var detailDetent: PresentationDetent = .height(220)
+    @State private var mapRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 45.521, longitude: -123.108),
+        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+    )
+    @State private var focusedRegion: MKCoordinateRegion?
     
     private var currentStep: MKRoute.Step? {
         guard routeSteps.indices.contains(currentStepIndex) else { return nil }
@@ -954,6 +996,25 @@ struct MapView: View {
         
     ]
 
+    private var displayedOutdoorLocations: [CampusLocation] {
+        var merged = campusLocations
+        var seen = Set(merged.map { normalizedOutdoorKey(name: $0.name) })
+
+        for building in buildingStore.buildings {
+            let location = matchCampusLocation(for: building)
+            let key = normalizedOutdoorKey(name: location.name)
+            if seen.insert(key).inserted {
+                merged.append(location)
+            }
+        }
+
+        return merged
+    }
+
+    private func normalizedOutdoorKey(name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
 
     
     private func matchCampusLocation(for building: CampusBuilding) -> CampusLocation {
@@ -990,7 +1051,8 @@ struct MapView: View {
     @MainActor
     private func startDirections(to location: CampusLocation) async {
         
-        selectedLocation = nil
+        selectedOutdoorLocation = nil
+        selectedIndoorLocation = nil
         guard let userCoordinate = locationManager.location?.coordinate else {
             navigationError = "Current location unavailable."
             return
@@ -1025,8 +1087,9 @@ struct MapView: View {
             isCalculatingRoute = false
             navigationDestination = location
 
-
-            camera = .rect(route.polyline.boundingMapRect)
+            let routeRect = route.polyline.boundingMapRect
+            let padded = routeRect.insetBy(dx: -routeRect.size.width * 0.15, dy: -routeRect.size.height * 0.15)
+            focusedRegion = MKCoordinateRegion(padded)
             
         } catch {
             navigationError = error.localizedDescription
@@ -1037,92 +1100,68 @@ struct MapView: View {
     
     
     var body: some View {
-        Map(position: $camera,selection: $selectedLocation, scope: mapScope) {
-            UserAnnotation()
-            
-            if let activeRoute {
-                MapPolyline(activeRoute.polyline)
-                    .stroke(.blue, lineWidth: 6)
-            }
-            
-            ForEach(campusLocations) { location in
-                    Marker(location.name, coordinate: location.coordinate)
-                        .tag(location)
-                }
-            
-        }.onAppear {
-            locationManager.requestPermissionAndStart()
-        }.mapControls{
-            MapUserLocationButton(scope: mapScope)
-            MapCompass(scope: mapScope)
-            MapScaleView(scope: mapScope)
-        }.sheet(item: $selectedLocation) { location in
-            LocationPreviewSheet(location: location) { tappedLocation in
-                Task {
-                    await startDirections(to: tappedLocation)
-                }
-            }
-        }.onChange(of: appState.selectedBuildingID) { _, newID in
-            guard let newID else { return }
-
-            // Find the selected CloudKit building
-            guard let building = buildingStore.buildings.first(where: { $0.id == newID }) else { return }
-
-            // Convert to a CampusLocation (prefer matching your detailed ones)
-            let loc = matchCampusLocation(for: building)
-
-            // 1) Select it (opens sheet + highlights marker because of .tag(location))
-            selectedLocation = loc
-
-            // 2) Zoom to it
-            camera = .region(
-                MKCoordinateRegion(
-                    center: loc.coordinate,
-                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
-                )
-    @State private var hasCenteredOnUser = false
-    @State private var indoorBuildings: [IndoorBuilding] = []
-    @State private var indoorShapesByFloor: [String: [IndoorShape]] = [:]
-    @State private var indoorLabelsByFloor: [String: [IndoorLabel]] = [:]
-    @State private var indoorLocationsByFloor: [String: [IndoorLocation]] = [:]
-    @State private var selectedBuildingId: String = ""
-    @State private var selectedFloorId: String = ""
-    @State private var selectedIndoorLocation: IndoorLocation? = nil
-    @State private var detailDetent: PresentationDetent = .height(220)
-    @State private var mapRegion = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 45.521, longitude: -123.108),
-        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-    )
-    @State private var focusedRegion: MKCoordinateRegion?
-
-    var body: some View {
         MKMapViewRepresentable(
             region: $mapRegion,
             focusedRegion: focusedRegion,
-            buildings: indoorBuildings,
             shapesByFloor: indoorShapesByFloor,
             labelsByFloor: indoorLabelsByFloor,
             locationsByFloor: indoorLocationsByFloor,
-            selectedBuildingId: selectedBuildingId,
             selectedFloorId: selectedFloorId,
-            selectedIndoorLocation: $selectedIndoorLocation,
+            selectedLocation: $selectedIndoorLocation,
+            outdoorLocations: displayedOutdoorLocations,
+            routePolyline: activeRoute?.polyline,
+            onOutdoorSelection: { location in
+                selectedIndoorLocation = nil
+                selectedOutdoorLocation = location
+            },
             onRegionChange: { newRegion in
                 let halfSpan = newRegion.span.longitudeDelta / 2
-                let left = CLLocationCoordinate2D(latitude: newRegion.center.latitude, longitude: newRegion.center.longitude - halfSpan)
-                let right = CLLocationCoordinate2D(latitude: newRegion.center.latitude, longitude: newRegion.center.longitude + halfSpan)
+                let left = CLLocationCoordinate2D(
+                    latitude: newRegion.center.latitude,
+                    longitude: newRegion.center.longitude - halfSpan
+                )
+                let right = CLLocationCoordinate2D(
+                    latitude: newRegion.center.latitude,
+                    longitude: newRegion.center.longitude + halfSpan
+                )
                 let widthMeters = MKMapPoint(left).distance(to: MKMapPoint(right))
                 if widthMeters >= 1200 {
                     selectedIndoorLocation = nil
                 }
             }
         )
+        .ignoresSafeArea()
         .task {
+            guard indoorBuildings.isEmpty else { return }
             let data = IndoorDataLoader.loadCampusIndoorData()
             indoorBuildings = data.buildings
             indoorShapesByFloor = data.shapesByFloor
             indoorLabelsByFloor = data.labelsByFloor
             indoorLocationsByFloor = data.locationsByFloor
             syncSelection(with: data.buildings)
+        }
+        .onAppear {
+            locationManager.requestPermissionAndStart()
+        }
+        .onReceive(locationManager.$location) { location in
+            guard let location, !hasCenteredOnUser else { return }
+            hasCenteredOnUser = true
+            focusedRegion = MKCoordinateRegion(
+                center: location.coordinate,
+                span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            )
+        }
+        .onChange(of: appState.selectedBuildingID) { _, newID in
+            guard let newID else { return }
+            guard let building = buildingStore.buildings.first(where: { $0.id == newID }) else { return }
+
+            let location = matchCampusLocation(for: building)
+            selectedIndoorLocation = nil
+            selectedOutdoorLocation = location
+            focusedRegion = MKCoordinateRegion(
+                center: location.coordinate,
+                span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+            )
         }
         .onChange(of: selectedBuildingId) { _, newValue in
             guard let building = indoorBuildings.first(where: { $0.id == newValue }) else { return }
@@ -1135,6 +1174,17 @@ struct MapView: View {
             if !defaultId.isEmpty {
                 selectedFloorId = defaultId
                 focusOnBuilding(floorId: defaultId)
+            }
+        }
+        .onChange(of: selectedIndoorLocation?.id) { _, newValue in
+            if newValue != nil {
+                selectedOutdoorLocation = nil
+                detailDetent = .height(220)
+            }
+        }
+        .onChange(of: selectedOutdoorLocation?.id) { _, newValue in
+            if newValue != nil {
+                selectedIndoorLocation = nil
             }
         }
         .overlay(alignment: .trailing) {
@@ -1154,29 +1204,7 @@ struct MapView: View {
                     .padding(.top, 60)
             }
         }
-        .onReceive(locationManager.$location) { location in
-            guard let location, !hasCenteredOnUser else { return }
-            hasCenteredOnUser = true
-            focusedRegion = MKCoordinateRegion(
-                center: location.coordinate,
-                span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
-        }.overlay(alignment: .top) {
-            if isNavigating, let firstStep = routeSteps.first {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Next Step")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Text(firstStep.instructions)
-                        .font(.headline)
-                }
-                .padding()
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                .padding(.top, 12)
-                .padding(.horizontal)
-            }
-        }.overlay(alignment: .top) {
+        .overlay(alignment: .top) {
             if isNavigating, let currentStep {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Next Direction")
@@ -1198,13 +1226,15 @@ struct MapView: View {
                 .padding(.horizontal)
                 .padding(.top, 12)
             }
-        }.overlay {
+        }
+        .overlay {
             if isCalculatingRoute {
                 ProgressView("Calculating route...")
                     .padding()
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
-        }.overlay(alignment: .bottom) {
+        }
+        .overlay(alignment: .bottom) {
             if isNavigating {
                 Button(role: .destructive) {
                     endNavigation()
@@ -1216,9 +1246,9 @@ struct MapView: View {
                 .buttonStyle(.borderedProminent)
                 .padding()
             }
-        }.overlay(alignment: .bottomTrailing) {
+        }
+        .overlay(alignment: .bottomTrailing) {
             if isNavigating {
-                
                 Button {
                     showDirectionsList = true
                 } label: {
@@ -1231,7 +1261,19 @@ struct MapView: View {
                 .padding(.bottom, 90)
             }
         }
-<<<<<<< HEAD
+        .sheet(item: $selectedOutdoorLocation) { location in
+            LocationPreviewSheet(location: location) { tappedLocation in
+                Task {
+                    await startDirections(to: tappedLocation)
+                }
+            }
+        }
+        .sheet(item: $selectedIndoorLocation) { location in
+            IndoorLocationDetailView(location: location)
+                .presentationDetents([.height(220), .medium, .large], selection: $detailDetent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled)
+        }
         .sheet(isPresented: $showDirectionsList) {
             NavigationStepsView(
                 steps: routeSteps,
@@ -1246,21 +1288,6 @@ struct MapView: View {
             Button("OK", role: .cancel) { navigationError = nil }
         } message: {
             Text(navigationError ?? "")
-        }
-        
-<<<<<<< HEAD
-=======
-        .ignoresSafeArea()
-        .sheet(item: $selectedLocation) { location in
-            IndoorLocationDetailView(location: location)
-                .presentationDetents([.height(220), .medium, .large], selection: $detailDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .onChange(of: selectedLocation?.id) { _, newValue in
-            if newValue != nil {
-                detailDetent = .height(220)
-            }
         }
     }
 
@@ -1336,9 +1363,10 @@ struct MapView: View {
         if let point = shape as? MKPointAnnotation {
             let mapPoint = MKMapPoint(point.coordinate)
             let size = MKMapSize(width: 200, height: 200)
-            return MKMapRect(origin: MKMapPoint(x: mapPoint.x - size.width / 2,
-                                                y: mapPoint.y - size.height / 2),
-                             size: size)
+            return MKMapRect(
+                origin: MKMapPoint(x: mapPoint.x - size.width / 2, y: mapPoint.y - size.height / 2),
+                size: size
+            )
         }
         return nil
     }
@@ -1350,7 +1378,6 @@ struct MapView: View {
         }
         return combined
     }
-
 }
 
 private struct IndoorLocationDetailView: View {
@@ -1491,20 +1518,5 @@ private struct FloorStack: View {
         let digits = text.compactMap { $0.isNumber ? $0 : nil }
         guard !digits.isEmpty else { return nil }
         return String(digits)
->>>>>>> main
-=======
-        
-//        .onReceive(locationManager.$location) { location in
-//            guard let location, !hasCenteredOnUser else { return }
-//
-//            hasCenteredOnUser = true   // only do this once
-//            camera = .region(
-//                MKCoordinateRegion(
-//                    center: location.coordinate,
-//                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-//                )
-//            )
-//        }.ignoresSafeArea()
->>>>>>> parent of 0aada53 (confirmed all buildings on campus are accessable from the database)
     }
 }

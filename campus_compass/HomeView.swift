@@ -282,8 +282,8 @@ struct HomeView: View {
                         .font(.custom("Avenir Next", size: 14))
                         .foregroundColor(.secondary)
 
-                    if let user = session.currentUser {
-                        Text("Welcome, \(user.name)!")
+                    if !profile.name.isEmpty {
+                        Text("Welcome, \(profile.name)!")
                             .font(.custom("Avenir Next", size: 16).weight(.semibold))
                             .foregroundColor(.red)
                             .padding(.vertical, 6)
@@ -305,91 +305,64 @@ struct HomeView: View {
                         .stroke(Color.black.opacity(0.06), lineWidth: 1)
                 )
 
-                SearchBarView()
-                MenuView(session: session)
-            }
+                SearchBarView(searchText: $searchText)
 
-            Divider()
-            Spacer().frame(height: 30)
+                if !filteredBuildings.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(filteredBuildings) { building in
+                            Button {
+                                appState.selectedBuildingID = building.id
+                                appState.selectedTab = 1
+                                searchText = ""
+                            } label: {
+                                HStack {
+                                    Image(systemName: "building.2")
+                                    Text(building.name)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 12)
+                            }
+                            .buttonStyle(.plain)
 
-            //DEBUG TEXT
-            Text("User ID: \(userID)")
+                            Divider()
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemBackground))
+                            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+                    )
+                    .padding(.horizontal)
+                }
+
+                MenuView(profile: profile)
+
+                Text("User ID: \(userID)")
                     .font(.caption)
                     .foregroundStyle(.gray)
-                    .padding()
-                    .onAppear {
-                        let container = CKContainer.default()
-
-                        container.fetchUserRecordID { recordID, error in
-                            if let id = recordID?.recordName {
-                                DispatchQueue.main.async {
-                                    userID = id
-                                }
-                            }
-                        }
-                    }
-            Text("Campus Compass")
-                .font(.largeTitle)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            Text("Navigate Pacific University with ease")
-                .foregroundColor(.gray)
-                .frame(maxWidth: .infinity, alignment: .center)
-            
-            Spacer();
-            // 👇 NEW — Welcome Message
-            if !profile.name.isEmpty {
-                Text("Welcome, \(profile.name)!")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.horizontal)
+                    .padding(.top, 8)
             }
-            SearchBarView(searchText: $searchText)
-//            Text("Loaded: \(buildingStore.buildings.count)")
-//                .font(.caption)
-//                .foregroundColor(.gray)
-            // Results drop-down
-            if !filteredBuildings.isEmpty {
-                VStack(spacing: 8) {
-                    ForEach(filteredBuildings) { building in
-                        Button {
-                            // 1) store selection
-                            appState.selectedBuildingID = building.id
-                            // 2) jump to map tab
-                            appState.selectedTab = 1
-                            // 3) optional: clear search
-                            searchText = ""
-                        } label: {
-                            HStack {
-                                Image(systemName: "building.2")
-                                Text(building.name)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
-                            }
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 12)
-                        }
-                        .buttonStyle(.plain)
+            .padding(.horizontal)
+            .padding(.vertical, 18)
+        }
+        .task {
+            if buildingStore.buildings.isEmpty {
+                await buildingStore.fetchBuildings()
+            }
+        }
+        .onAppear {
+            let container = CKContainer.default()
 
-                        Divider()
-                    }
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
-                )
-                .padding(.horizontal)
-                .task {
-                    if buildingStore.buildings.isEmpty {
-                        await buildingStore.fetchBuildings()
+            container.fetchUserRecordID { recordID, _ in
+                if let id = recordID?.recordName {
+                    DispatchQueue.main.async {
+                        userID = id
                     }
                 }
             }
-            
-            MenuView(profile:profile)
         }
         .background(
             LinearGradient(

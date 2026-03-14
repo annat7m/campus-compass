@@ -5,7 +5,6 @@ struct ContentView: View {
     @StateObject private var appState = AppState()
     @StateObject private var buildingStore = BuildingStore()
 
-    @State private var selectedTab = 0
     @State private var settingsPath = NavigationPath()
     @State private var showWelcome = true
 
@@ -49,17 +48,18 @@ struct ContentView: View {
 
     @ViewBuilder
     private func mainTabs(profile: UserProfile) -> some View {
-        TabView(selection: $appState.selectedTab) {
-            HomeView(profile: profile)
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(0)
+        ZStack {
+            TabView(selection: $appState.selectedTab) {
+                HomeView(profile: profile)
+                    .tabItem { Label("Home", systemImage: "house.fill") }
+                    .tag(0)
 
                 MapView()
                     .tabItem { Label("Map", systemImage: "map") }
                     .tag(1)
 
                 NavigationStack(path: $settingsPath) {
-                    SettingsView(selectedTab: $selectedTab, session: session, settingsPath: $settingsPath)
+                    SettingsView(selectedTab: $appState.selectedTab, profile: profile, settingsPath: $settingsPath)
                 }
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(2)
