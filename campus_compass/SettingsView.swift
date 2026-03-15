@@ -279,6 +279,8 @@ struct SettingsView: View {
             message = "iCloud is restricted on this device."
         case .couldNotDetermine:
             message = "Could not determine iCloud status."
+        case .temporarilyUnavailable:
+            message = "iCloud is signed in but temporarily unavailable. Try again in a moment."
         @unknown default:
             message = "Unknown iCloud status."
         }

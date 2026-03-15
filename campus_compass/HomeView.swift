@@ -362,19 +362,6 @@ struct HomeView: View {
                         userID = id
                     }
                 }
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 8)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
-                )
-
-                SearchBarView()
-                MenuView(session: session)
             }
         }
         .background(
