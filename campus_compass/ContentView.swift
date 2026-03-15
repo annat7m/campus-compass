@@ -1,22 +1,55 @@
-//
-//  ContentView.swift
-//  campus_compass
-//
-//  Created by Anna Tymoshenko on 10/6/25.
-//
-
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
-    @State private var selectedTab = 0
-    @State private var session = UserSession()
+    @StateObject private var appState = AppState()
+    @StateObject private var buildingStore = BuildingStore()
+
     @State private var settingsPath = NavigationPath()
     @State private var showWelcome = true
 
+    @Environment(\.modelContext) private var modelContext
+    @Query private var profiles: [UserProfile]
+
     var body: some View {
+        Group {
+            if let profile = profiles.first {
+                mainTabs(profile: profile)
+                
+            } else {
+                OnboardingView { name in
+                    let p = UserProfile(name: name)
+                    modelContext.insert(p)
+                    
+                    do {
+                            try modelContext.save()
+                            print("Created and saved profile: \(p.name)")
+                        } catch {
+                            print("Failed to save profile: \(error)")
+                        }
+                }
+            }
+        }
+        .onAppear {
+            print("Profiles found locally: \(profiles.count)")
+            if let first = profiles.first {
+                print("First profile name: \(first.name)")
+            }
+        }
+        .environmentObject(appState)
+        .environmentObject(buildingStore)
+        .task {
+            if buildingStore.buildings.isEmpty {
+                await buildingStore.fetchBuildings()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func mainTabs(profile: UserProfile) -> some View {
         ZStack {
-            TabView(selection: $selectedTab) {
-                HomeView(session: session)
+            TabView(selection: $appState.selectedTab) {
+                HomeView(profile: profile)
                     .tabItem { Label("Home", systemImage: "house.fill") }
                     .tag(0)
 
@@ -25,7 +58,7 @@ struct ContentView: View {
                     .tag(1)
 
                 NavigationStack(path: $settingsPath) {
-                    SettingsView(selectedTab: $selectedTab, session: session, settingsPath: $settingsPath)
+                    SettingsView(selectedTab: $appState.selectedTab, profile: profile, settingsPath: $settingsPath)
                 }
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(2)

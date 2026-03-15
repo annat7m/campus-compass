@@ -34,17 +34,17 @@ struct AccessibilityProfile: Codable, Equatable {
 //  struct:      Campus
 //
 //  Description: Logical campus container
-struct Campus {
-    var id: UUID
-    var name: String
-    var buildings: [Building]
-
-    init(id: UUID = UUID(), name: String, buildings: [Building]) {
-        self.id = id
-        self.name = name
-        self.buildings = buildings
-    }
-}
+//struct Campus {
+//    var id: UUID
+//    var name: String
+//    var buildings: [Building]
+//
+//    init(id: UUID = UUID(), name: String, buildings: [Building]) {
+//        self.id = id
+//        self.name = name
+//        self.buildings = buildings
+//    }
+//}
 
 //  struct:      POI
 //

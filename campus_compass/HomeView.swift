@@ -23,17 +23,19 @@
 //
 
 import SwiftUI
+import CloudKit
 
 /// A simple search input UI used on the Home screen.
 ///
 /// - Note: Currently stores input locally; connect to real search when needed.
 struct SearchBarView: View {
-    @State private var searchText: String = ""
+    @Binding var searchText: String
+    
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.secondary)
-            TextField("Search...", text: $searchText)
+            TextField("Search buildings...", text: $searchText)
                 .font(.custom("Avenir Next", size: 15))
         }
         .padding(.horizontal, 14)
@@ -127,19 +129,26 @@ struct MenuItem: Identifiable {
 /// - If user logged in but favorites empty: show a "No buildings saved" message.
 /// - Otherwise: map favorites strings into `MenuItem` buttons.
 struct MenuView: View {
-    var session: UserSession
-
+    var profile: UserProfile
+    @EnvironmentObject private var appState: AppState
     var body: some View {
         LazyVStack(spacing: 18) {
             MenuSectionView(
                 title: "Quick Actions",
                 items: [
-                    MenuItem(title: "View Campus Map", systemImage: "map", action: { print("Campus Map tapped") }),
+                    MenuItem(
+                        title: "View Campus Map",
+                        systemImage: "map",
+                        action: {
+                            appState.selectedBuildingID = nil   // clear any selection
+                            appState.selectedTab = 1            // switch to Map tab
+                        }
+                    ),
                     MenuItem(title: "Find Parking", systemImage: "car.fill", action: { print("Find Parking tapped") }),
-                    MenuItem(title: "Find Dining Options", systemImage: "fork.knife", action: { print("Find Dining tapped")})
+                    MenuItem(title: "Find Dining Options", systemImage: "fork.knife", action: { print("Find Dining tapped") })
                 ]
             )
-            
+
             MenuSectionView(
                 title: "Popular Destinations",
                 items: [
@@ -147,49 +156,32 @@ struct MenuView: View {
                     MenuItem(title: "Gym", systemImage: "figure.strengthtraining.traditional", action: { print("Gym tapped") })
                 ]
             )
-            
+
             MenuSectionView(
                 title: "Recent Locations",
-                items: [MenuItem(title: "Strain Science Center", systemImage: "building", action:{print("Strain tapped") })
-                       ]
+                items: profile.recentLocations.map { loc in
+                    MenuItem(title: loc, systemImage: "building", action: { print("Tapped \(loc)") })
+                },
+                message: "No recent locations yet"
             )
-            
-            // FAVORITES SECTION
-            // Favorites are driven by the user's session state.
-            if let user = session.currentUser {
-                
-                // User is logged in
-                if user.favorites.isEmpty {
-                    
-                    // No favorites saved
-                    MenuSectionView(
-                        title: "Favorites",
-                        items: nil,
-                        message: "No buildings saved"
-                    )
-                    
-                } else {
-                    
-                    // Convert favorites (strings) into MenuItem buttons
-                    MenuSectionView(
-                        title: "Favorites",
-                        items: user.favorites.map { fav in
-                            MenuItem(
-                                title: fav,
-                                systemImage: "building",
-                                action: { print("Tapped \(fav)") }
-                            )
-                        }
-                    )
-                }
-                
-            } else {
-                
-                // No user logged in
+
+            // FAVORITES SECTION (now driven by profile)
+            if profile.favorites.isEmpty {
                 MenuSectionView(
                     title: "Favorites",
                     items: nil,
-                    message: "Log in to see your favorite locations!"
+                    message: "No buildings saved"
+                )
+            } else {
+                MenuSectionView(
+                    title: "Favorites",
+                    items: profile.favorites.map { fav in
+                        MenuItem(
+                            title: fav,
+                            systemImage: "building",
+                            action: { print("Tapped \(fav)") }
+                        )
+                    }
                 )
             }
         }
@@ -239,8 +231,37 @@ struct ActionButton: View {
 /// - Optional welcome message when a user is logged in.
 /// - Search bar and the menu content.
 struct HomeView: View {
-    var session: UserSession
+    var profile: UserProfile
 
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var buildingStore: BuildingStore
+       @State private var searchText = ""
+    @State private var userID: String = "Loading..."
+    private var filteredBuildings: [CampusBuilding] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return [] }
+
+        let qLower = q.lowercased()
+
+        return buildingStore.buildings
+            .filter { $0.name.localizedCaseInsensitiveContains(q) }
+            .sorted { a, b in
+                let aName = a.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let bName = b.name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                let aStarts = aName.lowercased().hasPrefix(qLower)
+                let bStarts = bName.lowercased().hasPrefix(qLower)
+
+                // 1) Starts-with matches first
+                if aStarts != bStarts { return aStarts && !bStarts }
+
+                // 2) Otherwise alphabetical (stable and predictable)
+                return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
+            }
+            .prefix(6)
+            .map { $0 }
+    }
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
@@ -261,8 +282,8 @@ struct HomeView: View {
                         .font(.custom("Avenir Next", size: 14))
                         .foregroundColor(.secondary)
 
-                    if let user = session.currentUser {
-                        Text("Welcome, \(user.name)!")
+                    if !profile.name.isEmpty {
+                        Text("Welcome, \(profile.name)!")
                             .font(.custom("Avenir Next", size: 16).weight(.semibold))
                             .foregroundColor(.red)
                             .padding(.vertical, 6)
@@ -284,12 +305,77 @@ struct HomeView: View {
                         .stroke(Color.black.opacity(0.06), lineWidth: 1)
                 )
 
+                SearchBarView(searchText: $searchText)
+
+                if !filteredBuildings.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(filteredBuildings) { building in
+                            Button {
+                                appState.selectedBuildingID = building.id
+                                appState.selectedTab = 1
+                                searchText = ""
+                            } label: {
+                                HStack {
+                                    Image(systemName: "building.2")
+                                    Text(building.name)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                }
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 12)
+                            }
+                            .buttonStyle(.plain)
+
+                            Divider()
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemBackground))
+                            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+                    )
+                    .padding(.horizontal)
+                }
+
+                MenuView(profile: profile)
+
+                Text("User ID: \(userID)")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .padding(.top, 8)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 18)
+        }
+        .task {
+            if buildingStore.buildings.isEmpty {
+                await buildingStore.fetchBuildings()
+            }
+        }
+        .onAppear {
+            let container = CKContainer.default()
+
+            container.fetchUserRecordID { recordID, _ in
+                if let id = recordID?.recordName {
+                    DispatchQueue.main.async {
+                        userID = id
+                    }
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 8)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                )
+
                 SearchBarView()
                 MenuView(session: session)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 28)
         }
         .background(
             LinearGradient(

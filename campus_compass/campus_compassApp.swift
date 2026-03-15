@@ -14,6 +14,21 @@ struct campus_compassApp: App {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(for: UserProfile.self)
+        .modelContainer(makeModelContainer())
+    }
+
+    private func makeModelContainer() -> ModelContainer {
+        do {
+            let schema = Schema([UserProfile.self])
+
+            let config = ModelConfiguration(
+                schema: schema,
+                cloudKitDatabase: .private("iCloud.edu.pacificu.cs.campus-compass")
+            )
+
+            return try ModelContainer(for: schema, configurations: [config])
+        } catch {
+            fatalError("Failed to create ModelContainer: \(error)")
+        }
     }
 }
