@@ -7,10 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5FAEDBA13A8D100100A0C001 /* CampusOutdoorData in Resources */ = {isa = PBXBuildFile; fileRef = 5FAEDBA03A8D100100A0C001 /* CampusOutdoorData */; };
 		9FC0A4952F5E30F600A9144F /* CampusIndoorData in Resources */ = {isa = PBXBuildFile; fileRef = 9FC0A4942F5E30F600A9144F /* CampusIndoorData */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5FAEDBA03A8D100100A0C001 /* CampusOutdoorData */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CampusOutdoorData; sourceTree = "<group>"; };
 		9FC0A4942F5E30F600A9144F /* CampusIndoorData */ = {isa = PBXFileReference; lastKnownFileType = folder; path = CampusIndoorData; sourceTree = "<group>"; };
 		9FECF5A22E946D75007F632F /* campus_compass.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = campus_compass.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -37,6 +39,7 @@
 		9FECF5992E946D75007F632F = {
 			isa = PBXGroup;
 			children = (
+				5FAEDBA03A8D100100A0C001 /* CampusOutdoorData */,
 				9FC0A4942F5E30F600A9144F /* CampusIndoorData */,
 				9FECF5A42E946D75007F632F /* campus_compass */,
 				9FECF5A32E946D75007F632F /* Products */,
@@ -115,6 +118,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5FAEDBA13A8D100100A0C001 /* CampusOutdoorData in Resources */,
 				9FC0A4952F5E30F600A9144F /* CampusIndoorData in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -263,8 +267,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "campus-compass-Info.plist";
-					INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Campus Compass uses your location to keep your position updated while you navigate on campus.";
-					INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Campus Compass uses your location to show your position on campus maps.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Campus Compass uses your location to keep your position updated while you navigate on campus.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Campus Compass uses your location to show your position on campus maps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -299,8 +303,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "campus-compass-Info.plist";
-					INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Campus Compass uses your location to keep your position updated while you navigate on campus.";
-					INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Campus Compass uses your location to show your position on campus maps.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Campus Compass uses your location to keep your position updated while you navigate on campus.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Campus Compass uses your location to show your position on campus maps.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

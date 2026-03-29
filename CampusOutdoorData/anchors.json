@@ -1,0 +1,42 @@
+[
+  {
+    "id": "anchor-university-center",
+    "buildingName": "University Center",
+    "anchorNodeID": "uc-front"
+  },
+  {
+    "id": "anchor-tran-library",
+    "buildingName": "Tran Library",
+    "anchorNodeID": "tran-west"
+  },
+  {
+    "id": "anchor-strain",
+    "buildingName": "Strain Science Center",
+    "anchorNodeID": "strain-entry"
+  },
+  {
+    "id": "anchor-berglund",
+    "buildingName": "Berglund Hall",
+    "anchorNodeID": "berglund-entry"
+  },
+  {
+    "id": "anchor-price",
+    "buildingName": "Price Hall",
+    "anchorNodeID": "price-corner"
+  },
+  {
+    "id": "anchor-marsh",
+    "buildingName": "Marsh Hall",
+    "anchorNodeID": "marsh-crossing"
+  },
+  {
+    "id": "anchor-carnegie",
+    "buildingName": "Carnegie Hall",
+    "anchorNodeID": "carnegie-entry"
+  },
+  {
+    "id": "anchor-old-college",
+    "buildingName": "Old College Hall",
+    "anchorNodeID": "old-college-entry"
+  }
+]

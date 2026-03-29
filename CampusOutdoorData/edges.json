@@ -1,0 +1,74 @@
+[
+  {
+    "id": "edge-uc-tran",
+    "fromNodeID": "uc-front",
+    "toNodeID": "tran-west",
+    "distance": 62.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-tran-central",
+    "fromNodeID": "tran-west",
+    "toNodeID": "central-crossing",
+    "distance": 54.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-central-strain",
+    "fromNodeID": "central-crossing",
+    "toNodeID": "strain-entry",
+    "distance": 78.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-central-price",
+    "fromNodeID": "central-crossing",
+    "toNodeID": "price-corner",
+    "distance": 58.0,
+    "penalty": 8.0,
+    "bidirectional": true,
+    "pathType": "secondary"
+  },
+  {
+    "id": "edge-strain-berglund",
+    "fromNodeID": "strain-entry",
+    "toNodeID": "berglund-entry",
+    "distance": 124.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-tran-marsh",
+    "fromNodeID": "tran-west",
+    "toNodeID": "marsh-crossing",
+    "distance": 146.0,
+    "penalty": 3.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-marsh-carnegie",
+    "fromNodeID": "marsh-crossing",
+    "toNodeID": "carnegie-entry",
+    "distance": 115.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-carnegie-old-college",
+    "fromNodeID": "carnegie-entry",
+    "toNodeID": "old-college-entry",
+    "distance": 48.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  }
+]
