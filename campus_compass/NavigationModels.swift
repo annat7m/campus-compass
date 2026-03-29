@@ -67,6 +67,15 @@ struct POI: Identifiable, Codable, Hashable {
 enum NavigationRouteSource {
     case apple
     case campusGraph
+
+    var displayName: String {
+        switch self {
+        case .apple:
+            return "Apple Walking"
+        case .campusGraph:
+            return "Campus Preferred"
+        }
+    }
 }
 
 struct NavigationStep: Identifiable, Hashable {
@@ -86,6 +95,19 @@ struct NavigationRoute {
     var polyline: MKPolyline? {
         guard !coordinates.isEmpty else { return nil }
         return MKPolyline(coordinates: coordinates, count: coordinates.count)
+    }
+
+    var distanceText: String {
+        if distance >= 1000 {
+            return String(format: "%.1f km", distance / 1000)
+        } else {
+            return "\(Int(distance)) m"
+        }
+    }
+
+    var etaText: String {
+        let minutes = max(1, Int(round(expectedTravelTime / 60)))
+        return "\(minutes) min"
     }
 }
 

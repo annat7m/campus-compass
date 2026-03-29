@@ -97,19 +97,28 @@ private struct InfoRow: View {
 }
 
 struct NavigationStepsView: View {
-    let steps: [NavigationStep]
+    let route: NavigationRoute
     let currentStepIndex: Int
-    let destinationName: String
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Destination") {
-                    Text(destinationName)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(route.destinationName)
+                        Text(route.source.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Summary") {
+                    InfoRow(title: "Distance", value: route.distanceText)
+                    InfoRow(title: "ETA", value: route.etaText)
                 }
 
                 Section("Directions") {
-                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                    ForEach(Array(route.steps.enumerated()), id: \.offset) { index, step in
                         HStack(alignment: .top, spacing: 12) {
                             Image(systemName: index == currentStepIndex ? "location.fill" : "arrow.turn.down.right")
                                 .foregroundStyle(index == currentStepIndex ? .blue : .secondary)
@@ -1236,11 +1245,17 @@ struct MapView: View {
             }
         }
         .overlay(alignment: .top) {
-            if isNavigating, let currentStep {
+            if isNavigating, let currentStep, let activeNavigationRoute {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Next Direction")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Next Direction")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(activeNavigationRoute.source.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Text(currentStep.instruction)
                         .font(.headline)
@@ -1306,11 +1321,15 @@ struct MapView: View {
                 .presentationBackgroundInteraction(.enabled)
         }
         .sheet(isPresented: $showDirectionsList) {
-            NavigationStepsView(
-                steps: routeSteps,
-                currentStepIndex: currentStepIndex,
-                destinationName: activeNavigationRoute?.destinationName ?? navigationDestination?.name ?? "Destination"
-            )
+            if let activeNavigationRoute {
+                NavigationStepsView(
+                    route: activeNavigationRoute,
+                    currentStepIndex: currentStepIndex
+                )
+            } else {
+                Text("No route available.")
+                    .padding()
+            }
         }
         .alert("Navigation Error", isPresented: Binding(
             get: { navigationError != nil },
