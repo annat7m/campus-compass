@@ -162,6 +162,20 @@ struct CampusLocation: Identifiable, Hashable {
     }
 }
 
+private struct ResolvedOutdoorDestination {
+    let location: CampusLocation
+    let anchor: OutdoorBuildingAnchor?
+    let anchorNode: OutdoorGraphNode?
+
+    var routeCoordinate: CLLocationCoordinate2D {
+        anchorNode?.coordinate ?? location.coordinate
+    }
+
+    var focusCoordinate: CLLocationCoordinate2D {
+        routeCoordinate
+    }
+}
+
 // MARK: - MKMapView annotation and overlay types (for native clustering)
 
 private final class IndoorLocationAnnotation: NSObject, MKAnnotation {
@@ -1023,8 +1037,6 @@ struct MapView: View {
         name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-
-    
     private func matchCampusLocation(for building: CampusBuilding) -> CampusLocation {
         // Try to match your rich local data first (best for sheet)
         if let match = campusLocations.first(where: { $0.name.caseInsensitiveCompare(building.name) == .orderedSame }) {
@@ -1045,6 +1057,26 @@ struct MapView: View {
             shortDescription: nil
         )
     }
+
+    private func resolveOutdoorDestination(for location: CampusLocation) -> ResolvedOutdoorDestination {
+        let normalizedName = normalizedOutdoorKey(name: location.name)
+        let anchor = outdoorGraphDataset.anchors.first {
+            normalizedOutdoorKey(name: $0.buildingName) == normalizedName
+        }
+        let anchorNode = anchor.flatMap { anchor in
+            outdoorGraphDataset.nodes.first(where: { $0.id == anchor.anchorNodeID })
+        }
+
+        return ResolvedOutdoorDestination(
+            location: location,
+            anchor: anchor,
+            anchorNode: anchorNode
+        )
+    }
+
+    private func resolveOutdoorDestination(for building: CampusBuilding) -> ResolvedOutdoorDestination {
+        resolveOutdoorDestination(for: matchCampusLocation(for: building))
+    }
     
     private func endNavigation() {
         activeNavigationRoute = nil
@@ -1057,7 +1089,8 @@ struct MapView: View {
     
     @MainActor
     private func startDirections(to location: CampusLocation) async {
-        
+        let resolvedDestination = resolveOutdoorDestination(for: location)
+
         selectedOutdoorLocation = nil
         selectedIndoorLocation = nil
         guard let userCoordinate = locationManager.location?.coordinate else {
@@ -1072,14 +1105,15 @@ struct MapView: View {
         do {
             let route = try await routeCoordinator.route(
                 from: userCoordinate,
-                destinationName: location.name,
-                destinationCoordinate: location.coordinate
+                destinationName: resolvedDestination.location.name,
+                destinationCoordinate: resolvedDestination.routeCoordinate,
+                preferredAnchorNodeID: resolvedDestination.anchor?.anchorNodeID
             )
             activeNavigationRoute = route
             currentStepIndex = 0;
             isNavigating = true
             isCalculatingRoute = false
-            navigationDestination = location
+            navigationDestination = resolvedDestination.location
 
             if let polyline = route.polyline {
                 let routeRect = polyline.boundingMapRect
@@ -1152,11 +1186,11 @@ struct MapView: View {
             guard let newID else { return }
             guard let building = buildingStore.buildings.first(where: { $0.id == newID }) else { return }
 
-            let location = matchCampusLocation(for: building)
+            let resolvedDestination = resolveOutdoorDestination(for: building)
             selectedIndoorLocation = nil
-            selectedOutdoorLocation = location
+            selectedOutdoorLocation = resolvedDestination.location
             focusedRegion = MKCoordinateRegion(
-                center: location.coordinate,
+                center: resolvedDestination.focusCoordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
             )
         }

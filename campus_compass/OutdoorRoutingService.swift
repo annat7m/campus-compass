@@ -20,12 +20,14 @@ struct OutdoorRouteCoordinator {
     func route(
         from origin: CLLocationCoordinate2D,
         destinationName: String,
-        destinationCoordinate: CLLocationCoordinate2D
+        destinationCoordinate: CLLocationCoordinate2D,
+        preferredAnchorNodeID: String? = nil
     ) async throws -> NavigationRoute {
         if let graphRoute = graphRouter.route(
             from: origin,
             destinationName: destinationName,
-            destinationCoordinate: destinationCoordinate
+            destinationCoordinate: destinationCoordinate,
+            preferredAnchorNodeID: preferredAnchorNodeID
         ) {
             return graphRoute
         }
@@ -52,12 +54,13 @@ struct CampusGraphRouter {
     func route(
         from origin: CLLocationCoordinate2D,
         destinationName: String,
-        destinationCoordinate: CLLocationCoordinate2D
+        destinationCoordinate: CLLocationCoordinate2D,
+        preferredAnchorNodeID: String? = nil
     ) -> NavigationRoute? {
         guard
             !dataset.nodes.isEmpty,
             !dataset.edges.isEmpty,
-            let anchor = anchor(for: destinationName),
+            let anchor = anchor(for: destinationName, preferredAnchorNodeID: preferredAnchorNodeID),
             let destinationNode = nodesByID[anchor.anchorNodeID],
             let originNode = nearestNode(to: origin)
         else {
@@ -139,7 +142,12 @@ struct CampusGraphRouter {
         )
     }
 
-    private func anchor(for buildingName: String) -> OutdoorBuildingAnchor? {
+    private func anchor(for buildingName: String, preferredAnchorNodeID: String?) -> OutdoorBuildingAnchor? {
+        if let preferredAnchorNodeID,
+           let preferred = dataset.anchors.first(where: { $0.anchorNodeID == preferredAnchorNodeID }) {
+            return preferred
+        }
+
         let normalized = normalize(buildingName)
         return dataset.anchors.first { normalize($0.buildingName) == normalized }
     }
