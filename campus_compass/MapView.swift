@@ -673,6 +673,7 @@ struct MapView: View {
     @State private var indoorShapesByFloor: [String: [IndoorShape]] = [:]
     @State private var indoorLabelsByFloor: [String: [IndoorLabel]] = [:]
     @State private var indoorLocationsByFloor: [String: [IndoorLocation]] = [:]
+    @State private var outdoorGraphDataset: OutdoorGraphDataset = .empty
     @State private var selectedBuildingId: String = ""
     @State private var selectedFloorId: String = ""
     @State private var selectedIndoorLocation: IndoorLocation?
@@ -690,6 +691,10 @@ struct MapView: View {
     private var currentStep: NavigationStep? {
         guard routeSteps.indices.contains(currentStepIndex) else { return nil }
         return routeSteps[currentStepIndex]
+    }
+
+    private var routeCoordinator: OutdoorRouteCoordinator {
+        OutdoorRouteCoordinator(dataset: outdoorGraphDataset)
     }
     
     let campusLocations: [CampusLocation] = [
@@ -1063,32 +1068,24 @@ struct MapView: View {
         isCalculatingRoute = true
         navigationError = nil
         currentStepIndex = 0
-        
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: userCoordinate))
-        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: location.coordinate))
-        request.transportType = .walking
-
-        let directions = MKDirections(request: request)
 
         do {
-            let response = try await directions.calculate()
-
-            guard let route = response.routes.first else {
-                navigationError = "No walking route found."
-                isCalculatingRoute = false
-                return
-            }
-
-            activeNavigationRoute = makeNavigationRoute(from: route, destinationName: location.name)
+            let route = try await routeCoordinator.route(
+                from: userCoordinate,
+                destinationName: location.name,
+                destinationCoordinate: location.coordinate
+            )
+            activeNavigationRoute = route
             currentStepIndex = 0;
             isNavigating = true
             isCalculatingRoute = false
             navigationDestination = location
 
-            let routeRect = route.polyline.boundingMapRect
-            let padded = routeRect.insetBy(dx: -routeRect.size.width * 0.15, dy: -routeRect.size.height * 0.15)
-            focusedRegion = MKCoordinateRegion(padded)
+            if let polyline = route.polyline {
+                let routeRect = polyline.boundingMapRect
+                let padded = routeRect.insetBy(dx: -routeRect.size.width * 0.15, dy: -routeRect.size.height * 0.15)
+                focusedRegion = MKCoordinateRegion(padded)
+            }
             
         } catch {
             navigationError = error.localizedDescription
@@ -1137,6 +1134,7 @@ struct MapView: View {
             indoorShapesByFloor = data.shapesByFloor
             indoorLabelsByFloor = data.labelsByFloor
             indoorLocationsByFloor = data.locationsByFloor
+            outdoorGraphDataset = OutdoorDataLoader.loadCampusOutdoorData()
             syncSelection(with: data.buildings)
         }
         .onAppear {
@@ -1334,39 +1332,6 @@ struct MapView: View {
 
         let padded = rect.insetBy(dx: -rect.size.width * 0.25, dy: -rect.size.height * 0.25)
         focusedRegion = MKCoordinateRegion(padded)
-    }
-
-    private func makeNavigationRoute(from route: MKRoute, destinationName: String) -> NavigationRoute {
-        let steps = route.steps
-            .filter { !$0.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .map { step in
-                NavigationStep(
-                    instruction: step.instructions,
-                    distance: step.distance
-                )
-            }
-
-        let pointCount = route.polyline.pointCount
-        let coordinates: [CLLocationCoordinate2D]
-        if pointCount > 0 {
-            var points = Array(
-                repeating: CLLocationCoordinate2D(latitude: 0, longitude: 0),
-                count: pointCount
-            )
-            route.polyline.getCoordinates(&points, range: NSRange(location: 0, length: pointCount))
-            coordinates = points
-        } else {
-            coordinates = []
-        }
-
-        return NavigationRoute(
-            source: .apple,
-            coordinates: coordinates,
-            steps: steps,
-            distance: route.distance,
-            expectedTravelTime: route.expectedTravelTime,
-            destinationName: destinationName
-        )
     }
 
     private func mapRect(for floorId: String) -> MKMapRect? {
