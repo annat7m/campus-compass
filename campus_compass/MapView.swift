@@ -97,7 +97,7 @@ private struct InfoRow: View {
 }
 
 struct NavigationStepsView: View {
-    let steps: [MKRoute.Step]
+    let steps: [NavigationStep]
     let currentStepIndex: Int
     let destinationName: String
 
@@ -115,7 +115,7 @@ struct NavigationStepsView: View {
                                 .foregroundStyle(index == currentStepIndex ? .blue : .secondary)
 
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(step.instructions)
+                                Text(step.instruction)
                                     .font(.body)
 
                                 Text(stepDistanceText(step.distance))
@@ -659,8 +659,7 @@ struct MapView: View {
     
     
     @State private var showDirectionsList = false
-    @State private var activeRoute: MKRoute?
-    @State private var routeSteps: [MKRoute.Step] = []
+    @State private var activeNavigationRoute: NavigationRoute?
     @State private var currentStepIndex: Int = 0
     @State private var isNavigating = false
     @State private var isCalculatingRoute = false
@@ -684,7 +683,11 @@ struct MapView: View {
     )
     @State private var focusedRegion: MKCoordinateRegion?
     
-    private var currentStep: MKRoute.Step? {
+    private var routeSteps: [NavigationStep] {
+        activeNavigationRoute?.steps ?? []
+    }
+
+    private var currentStep: NavigationStep? {
         guard routeSteps.indices.contains(currentStepIndex) else { return nil }
         return routeSteps[currentStepIndex]
     }
@@ -1039,8 +1042,7 @@ struct MapView: View {
     }
     
     private func endNavigation() {
-        activeRoute = nil
-        routeSteps = []
+        activeNavigationRoute = nil
         currentStepIndex = 0
         isNavigating = false
         isCalculatingRoute = false
@@ -1078,10 +1080,7 @@ struct MapView: View {
                 return
             }
 
-            activeRoute = route
-            routeSteps = route.steps.filter {
-                !$0.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            }
+            activeNavigationRoute = makeNavigationRoute(from: route, destinationName: location.name)
             currentStepIndex = 0;
             isNavigating = true
             isCalculatingRoute = false
@@ -1109,7 +1108,7 @@ struct MapView: View {
             selectedFloorId: selectedFloorId,
             selectedLocation: $selectedIndoorLocation,
             outdoorLocations: displayedOutdoorLocations,
-            routePolyline: activeRoute?.polyline,
+            routePolyline: activeNavigationRoute?.polyline,
             onOutdoorSelection: { location in
                 selectedIndoorLocation = nil
                 selectedOutdoorLocation = location
@@ -1211,11 +1210,11 @@ struct MapView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Text(currentStep.instructions)
+                    Text(currentStep.instruction)
                         .font(.headline)
 
                     if routeSteps.indices.contains(currentStepIndex + 1) {
-                        Text("Then: \(routeSteps[currentStepIndex + 1].instructions)")
+                        Text("Then: \(routeSteps[currentStepIndex + 1].instruction)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -1278,7 +1277,7 @@ struct MapView: View {
             NavigationStepsView(
                 steps: routeSteps,
                 currentStepIndex: currentStepIndex,
-                destinationName: navigationDestination?.name ?? "Destination"
+                destinationName: activeNavigationRoute?.destinationName ?? navigationDestination?.name ?? "Destination"
             )
         }
         .alert("Navigation Error", isPresented: Binding(
@@ -1335,6 +1334,39 @@ struct MapView: View {
 
         let padded = rect.insetBy(dx: -rect.size.width * 0.25, dy: -rect.size.height * 0.25)
         focusedRegion = MKCoordinateRegion(padded)
+    }
+
+    private func makeNavigationRoute(from route: MKRoute, destinationName: String) -> NavigationRoute {
+        let steps = route.steps
+            .filter { !$0.instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map { step in
+                NavigationStep(
+                    instruction: step.instructions,
+                    distance: step.distance
+                )
+            }
+
+        let pointCount = route.polyline.pointCount
+        let coordinates: [CLLocationCoordinate2D]
+        if pointCount > 0 {
+            var points = Array(
+                repeating: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+                count: pointCount
+            )
+            route.polyline.getCoordinates(&points, range: NSRange(location: 0, length: pointCount))
+            coordinates = points
+        } else {
+            coordinates = []
+        }
+
+        return NavigationRoute(
+            source: .apple,
+            coordinates: coordinates,
+            steps: steps,
+            distance: route.distance,
+            expectedTravelTime: route.expectedTravelTime,
+            destinationName: destinationName
+        )
     }
 
     private func mapRect(for floorId: String) -> MKMapRect? {

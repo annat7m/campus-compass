@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreLocation
+import MapKit
 
 //  struct:      AccessibilityProfile
 //
@@ -61,6 +62,66 @@ struct POI: Identifiable, Codable, Hashable {
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
+}
+
+enum NavigationRouteSource {
+    case apple
+    case campusGraph
+}
+
+struct NavigationStep: Identifiable, Hashable {
+    let id = UUID()
+    let instruction: String
+    let distance: CLLocationDistance
+}
+
+struct NavigationRoute {
+    let source: NavigationRouteSource
+    let coordinates: [CLLocationCoordinate2D]
+    let steps: [NavigationStep]
+    let distance: CLLocationDistance
+    let expectedTravelTime: TimeInterval
+    let destinationName: String
+
+    var polyline: MKPolyline? {
+        guard !coordinates.isEmpty else { return nil }
+        return MKPolyline(coordinates: coordinates, count: coordinates.count)
+    }
+}
+
+struct OutdoorGraphNode: Identifiable, Codable, Hashable {
+    let id: String
+    let latitude: Double
+    let longitude: Double
+    let name: String?
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+struct OutdoorGraphEdge: Identifiable, Codable, Hashable {
+    let id: String
+    let fromNodeID: String
+    let toNodeID: String
+    let distance: CLLocationDistance
+    let penalty: Double
+    let bidirectional: Bool
+    let pathType: String?
+}
+
+struct OutdoorBuildingAnchor: Identifiable, Codable, Hashable {
+    let id: String
+    let buildingName: String
+    let anchorNodeID: String
+}
+
+struct OutdoorGraphDataset: Codable, Hashable {
+    let nodes: [OutdoorGraphNode]
+    let edges: [OutdoorGraphEdge]
+    let anchors: [OutdoorBuildingAnchor]
+
+    static let empty = OutdoorGraphDataset(nodes: [], edges: [], anchors: [])
 }
 
 //  struct:      GraphNode
