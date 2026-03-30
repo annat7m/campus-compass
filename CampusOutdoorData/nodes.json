@@ -1,56 +1,56 @@
 [
   {
     "id": "uc-front",
-    "latitude": 45.52207,
-    "longitude": -123.10894,
+    "latitude": 45.52196,
+    "longitude": -123.10934,
     "name": "University Center Front"
   },
   {
     "id": "tran-west",
-    "latitude": 45.52156,
-    "longitude": -123.10876,
+    "latitude": 45.521376,
+    "longitude": -123.108990,
     "name": "Tran Library West Walk"
   },
   {
     "id": "central-crossing",
-    "latitude": 45.52135,
-    "longitude": -123.10820,
+    "latitude": 45.521620,
+    "longitude": -123.107990,
     "name": "Central Crossing"
   },
   {
     "id": "strain-entry",
-    "latitude": 45.52180,
-    "longitude": -123.10723,
+    "latitude": 45.521697,
+    "longitude": -123.107264,
     "name": "Strain Science Center Entry"
   },
   {
     "id": "berglund-entry",
-    "latitude": 45.52077,
-    "longitude": -123.10730,
+    "latitude": 45.520965,
+    "longitude": -123.107666,
     "name": "Berglund Hall Entry"
   },
   {
-    "id": "price-corner",
-    "latitude": 45.52186,
-    "longitude": -123.10797,
-    "name": "Price Hall Corner"
+    "id": "price-main",
+    "latitude": 45.521787,
+    "longitude": -123.107716,
+    "name": "Price Hall Main Entrance"
   },
   {
     "id": "marsh-crossing",
-    "latitude": 45.52095,
-    "longitude": -123.10946,
+    "latitude": 45.520833,
+    "longitude": -123.109675,
     "name": "Marsh Hall Crossing"
   },
   {
     "id": "carnegie-entry",
-    "latitude": 45.52021,
-    "longitude": -123.11034,
+    "latitude": 45.52029,
+    "longitude": -123.11036,
     "name": "Carnegie Hall Entry"
   },
   {
     "id": "old-college-entry",
-    "latitude": 45.52040,
-    "longitude": -123.11076,
+    "latitude": 45.52037,
+    "longitude": -123.11070,
     "name": "Old College Hall Entry"
   }
 ]

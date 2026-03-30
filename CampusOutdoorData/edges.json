@@ -29,7 +29,7 @@
   {
     "id": "edge-central-price",
     "fromNodeID": "central-crossing",
-    "toNodeID": "price-corner",
+    "toNodeID": "price-main",
     "distance": 58.0,
     "penalty": 8.0,
     "bidirectional": true,

@@ -22,7 +22,7 @@
   {
     "id": "anchor-price",
     "buildingName": "Price Hall",
-    "anchorNodeID": "price-corner"
+    "anchorNodeID": "price-main"
   },
   {
     "id": "anchor-marsh",
