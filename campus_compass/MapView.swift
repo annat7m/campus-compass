@@ -14,8 +14,8 @@ struct LocationPreviewSheet: View {
     let onDirectionsTapped: (CampusLocation) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
                 Text(location.name)
                     .font(.title2)
                     .bold()
@@ -24,60 +24,60 @@ struct LocationPreviewSheet: View {
                     Text(desc)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer()
-
-            Button {
-                onDirectionsTapped(location)
-            } label: {
-                Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-            }
-            .buttonStyle(.borderedProminent)
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 10) {
-                if let floors = location.floors {
-                    InfoRow(title: "Floors", value: "\(floors)")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if let offices = location.studentServiceOffices, !offices.isEmpty {
-                    InfoRow(
-                        title: "Student Services",
-                        value: offices.joined(separator: ", ")
-                    )
+                Button {
+                    onDirectionsTapped(location)
+                } label: {
+                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                 }
+                .buttonStyle(.borderedProminent)
 
-                if let accessibility = location.accessibilityInfo {
-                    InfoRow(title: "Accessibility", value: accessibility)
-                }
+                Divider()
 
-                if let hours = location.hoursOpen {
-                    InfoRow(title: "Hours", value: hours)
-                }
+                VStack(alignment: .leading, spacing: 10) {
+                    if let floors = location.floors {
+                        InfoRow(title: "Floors", value: "\(floors)")
+                    }
 
-                if let url = location.websiteURL {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Website")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    if let offices = location.studentServiceOffices, !offices.isEmpty {
+                        InfoRow(
+                            title: "Student Services",
+                            value: offices.joined(separator: ", ")
+                        )
+                    }
 
-                        Link(url.absoluteString, destination: url)
-                            .font(.body)
+                    if let accessibility = location.accessibilityInfo {
+                        InfoRow(title: "Accessibility", value: accessibility)
+                    }
+
+                    if let hours = location.hoursOpen {
+                        InfoRow(title: "Hours", value: hours)
+                    }
+
+                    if let url = location.websiteURL {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Website")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            Link(url.absoluteString, destination: url)
+                                .font(.body)
+                        }
+                    }
+
+                    if let contact = location.contactInfo {
+                        InfoRow(title: "Contact", value: contact)
                     }
                 }
-
-                if let contact = location.contactInfo {
-                    InfoRow(title: "Contact", value: contact)
-                }
             }
-
-            Spacer()
         }
-        .padding()
+        .padding(.horizontal, 20)
+        .padding(.top, 24)
+        .padding(.bottom, 20)
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -420,8 +420,10 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 }
             }
 
+            let hiddenBuildings: Set<String> = ["Pacific Bookstore"]
             var desiredOutdoorIds = Set<String>()
             for location in outdoor {
+                guard !hiddenBuildings.contains(location.name) else { continue }
                 let id = outdoorKey(name: location.name, coordinate: location.coordinate)
                 desiredOutdoorIds.insert(id)
                 if outdoorAnnotations[id] == nil {
@@ -489,7 +491,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             }
             if let outdoor = annotation as? OutdoorPlaceAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.outdoor, for: outdoor) as? MKMarkerAnnotationView
-                view?.markerTintColor = .systemBlue
+                view?.markerTintColor = .systemRed
                 view?.glyphText = nil
                 view?.glyphImage = nil
                 view?.glyphTintColor = nil
@@ -1205,14 +1207,14 @@ struct MapView: View {
                     FloorStack(floors: visibleFloors, selection: $selectedFloorId)
                 }
                 .padding(.trailing, 12)
-                .padding(.bottom, 120)
+                .padding(.bottom, 40)
             }
         }
         .overlay(alignment: .topLeading) {
             if !indoorBuildings.isEmpty {
                 BuildingPicker(buildings: indoorBuildings, selection: $selectedBuildingId)
                     .padding(.leading, 12)
-                    .padding(.top, 60)
+                    .padding(.top, 16)
             }
         }
         .overlay(alignment: .top) {

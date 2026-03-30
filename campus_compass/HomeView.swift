@@ -209,27 +209,80 @@ struct HomeHeaderView: View {
 }
 
 struct SearchBarView: View {
-    @Binding var searchText: String
-    
+    var theme: HomeTheme
+    @State private var searchText: String = ""
+    @EnvironmentObject private var appState: AppState
+    @EnvironmentObject private var buildingStore: BuildingStore
+
+    private var filteredBuildings: [CampusBuilding] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return [] }
+        let qLower = q.lowercased()
+        return buildingStore.buildings
+            .filter { $0.name.localizedCaseInsensitiveContains(q) }
+            .sorted { a, b in
+                let aName = a.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let bName = b.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let aStarts = aName.lowercased().hasPrefix(qLower)
+                let bStarts = bName.lowercased().hasPrefix(qLower)
+                if aStarts != bStarts { return aStarts && !bStarts }
+                return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
+            }
+            .prefix(6)
+            .map { $0 }
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(theme.mutedText)
-            TextField("Search buildings...", text: $searchText)
-                .font(.custom("Avenir Next", size: 15))
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(theme.mutedText)
+                TextField("Search buildings...", text: $searchText)
+                    .font(.custom("Avenir Next", size: 15))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(theme.surfaceElevated)
+                    .shadow(color: theme.shadowSoft, radius: 10, x: 0, y: 6)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(theme.outline, lineWidth: 1)
+            )
+            .frame(maxWidth: .infinity)
+
+            if !filteredBuildings.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(filteredBuildings) { building in
+                        Button {
+                            appState.selectedBuildingID = building.id
+                            appState.selectedTab = 1
+                            searchText = ""
+                        } label: {
+                            HStack {
+                                Image(systemName: "building.2")
+                                Text(building.name)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 12)
+                        }
+                        .buttonStyle(.plain)
+
+                        Divider()
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+                )
+            }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(theme.surfaceElevated)
-                .shadow(color: theme.shadowSoft, radius: 10, x: 0, y: 6)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(theme.outline, lineWidth: 1)
-        )
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -330,7 +383,6 @@ struct QuickActionCard: View {
                         RoundedRectangle(cornerRadius: 18)
                             .fill(LinearGradient(colors: cardGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
                     )
-                    .shadow(color: theme.shadowSoft, radius: 10, x: 0, y: 6)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18)
@@ -351,35 +403,6 @@ struct QuickActionsRow: View {
         HomePalette.moss
     ]
 
-    @EnvironmentObject private var appState: AppState
-    @EnvironmentObject private var buildingStore: BuildingStore
-       @State private var searchText = ""
-    @State private var userID: String = "Loading..."
-    private var filteredBuildings: [CampusBuilding] {
-        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return [] }
-
-        let qLower = q.lowercased()
-
-        return buildingStore.buildings
-            .filter { $0.name.localizedCaseInsensitiveContains(q) }
-            .sorted { a, b in
-                let aName = a.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                let bName = b.name.trimmingCharacters(in: .whitespacesAndNewlines)
-
-                let aStarts = aName.lowercased().hasPrefix(qLower)
-                let bStarts = bName.lowercased().hasPrefix(qLower)
-
-                // 1) Starts-with matches first
-                if aStarts != bStarts { return aStarts && !bStarts }
-
-                // 2) Otherwise alphabetical (stable and predictable)
-                return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
-            }
-            .prefix(6)
-            .map { $0 }
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeaderView(
@@ -517,64 +540,6 @@ struct EmptyStateCardView: View {
                         .foregroundColor(theme.ink)
                 )
 
-                SearchBarView(searchText: $searchText)
-
-                if !filteredBuildings.isEmpty {
-                    VStack(spacing: 8) {
-                        ForEach(filteredBuildings) { building in
-                            Button {
-                                appState.selectedBuildingID = building.id
-                                appState.selectedTab = 1
-                                searchText = ""
-                            } label: {
-                                HStack {
-                                    Image(systemName: "building.2")
-                                    Text(building.name)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.gray)
-                                }
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 12)
-                            }
-                            .buttonStyle(.plain)
-
-                            Divider()
-                        }
-                    }
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemBackground))
-                            .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
-                    )
-                    .padding(.horizontal)
-                }
-
-                MenuView(profile: profile)
-
-                Text("User ID: \(userID)")
-                    .font(.caption)
-                    .foregroundStyle(.gray)
-                    .padding(.top, 8)
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 18)
-        }
-        .task {
-            if buildingStore.buildings.isEmpty {
-                await buildingStore.fetchBuildings()
-            }
-        }
-        .onAppear {
-            let container = CKContainer.default()
-
-            container.fetchUserRecordID { recordID, _ in
-                if let id = recordID?.recordName {
-                    DispatchQueue.main.async {
-                        userID = id
-                    }
-                }
-            }
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.custom("Avenir Next", size: 16).weight(.semibold))
@@ -601,7 +566,7 @@ struct EmptyStateCardView: View {
 }
 
 struct HomeView: View {
-    var session: UserSession
+    var profile: UserProfile
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedSection: HomeSection = .popular
@@ -625,8 +590,7 @@ struct HomeView: View {
     ]
 
     private var favoriteItems: [MenuItem] {
-        guard let user = session.currentUser else { return [] }
-        return user.favorites.map { favorite in
+        return profile.favorites.map { favorite in
             MenuItem(
                 id: "favorite-\(favorite)",
                 title: favorite,
@@ -643,7 +607,7 @@ struct HomeView: View {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 22) {
-                        HomeHeaderView(userName: session.currentUser?.name, theme: theme)
+                        HomeHeaderView(userName: profile.name, theme: theme)
                             .opacity(animateIn ? 1 : 0)
                             .offset(y: animateIn ? 0 : 16)
 
@@ -687,13 +651,7 @@ struct HomeView: View {
                                 theme: theme
                             )
 
-                            if session.currentUser == nil {
-                                EmptyStateCardView(
-                                    title: "Log in to see favorites",
-                                    message: "Sign in to save and revisit the places you love.",
-                                    theme: theme
-                                )
-                            } else if favoriteItems.isEmpty {
+                            if favoriteItems.isEmpty {
                                 EmptyStateCardView(
                                     title: "No buildings saved",
                                     message: "Tap the heart on a location to add it here.",
