@@ -96,6 +96,53 @@ private struct InfoRow: View {
     }
 }
 
+struct IndoorStepsView: View {
+    let steps: [IndoorRouteStep]
+    let currentStepIndex: Int
+    let destinationName: String
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Destination") {
+                    Text(destinationName)
+                }
+                Section("Directions") {
+                    ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: stepIcon(step, isCurrent: index == currentStepIndex))
+                                .foregroundStyle(index == currentStepIndex ? .blue : .secondary)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(step.instruction)
+                                    .font(.body)
+                                if step.distance > 0 {
+                                    Text(distanceText(step.distance))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            .navigationTitle("Indoor Directions")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func stepIcon(_ step: IndoorRouteStep, isCurrent: Bool) -> String {
+        if isCurrent { return "location.fill" }
+        if step.isTransition { return "arrow.up.arrow.down" }
+        return "flag.fill"
+    }
+
+    private func distanceText(_ meters: Double) -> String {
+        if meters >= 1000 { return String(format: "%.1f km", meters / 1000) }
+        return "\(Int(meters)) m"
+    }
+}
+
 struct NavigationStepsView: View {
     let steps: [MKRoute.Step]
     let currentStepIndex: Int
@@ -200,6 +247,15 @@ private enum AnnotationReuseId {
     static let outdoor = "outdoorPlace"
     static let label = "indoorLabel"
     static let cluster = "indoorCluster"
+    static let indoorUser = "indoorUser"
+}
+
+private final class IndoorUserAnnotation: NSObject, MKAnnotation {
+    var coordinate: CLLocationCoordinate2D
+    init(_ coordinate: CLLocationCoordinate2D) {
+        self.coordinate = coordinate
+        super.init()
+    }
 }
 
 /// Wraps a polygon or polyline with kind/use so the delegate can style it.
@@ -247,6 +303,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     let labelsByFloor: [String: [IndoorLabel]]
     let locationsByFloor: [String: [IndoorLocation]]
     var selectedFloorId: String
+    let indoorUserCoordinate: CLLocationCoordinate2D?
     let onIndoorSelection: (IndoorLocation) -> Void
     let outdoorLocations: [CampusLocation]
     let routePolyline: MKPolyline?
@@ -268,6 +325,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.outdoor)
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.label)
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.cluster)
+        mapView.register(MKAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.indoorUser)
         let tap = UITapGestureRecognizer(target: context.coordinator,
                                          action: #selector(Coordinator.handleMapTap(_:)))
         tap.delegate = context.coordinator
@@ -297,6 +355,27 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             labels: showIndoor ? activeLabels : [],
             outdoor: outdoorLocations
         )
+
+        // Sync indoor user position dot
+        let newCoord = indoorUserCoordinate
+        let oldCoord = context.coordinator.indoorUserAnnotation?.coordinate
+        let coordChanged: Bool
+        if let new = newCoord, let old = oldCoord {
+            coordChanged = new.latitude != old.latitude || new.longitude != old.longitude
+        } else {
+            coordChanged = (newCoord == nil) != (oldCoord == nil)
+        }
+        if coordChanged {
+            if let existing = context.coordinator.indoorUserAnnotation {
+                mapView.removeAnnotation(existing)
+                context.coordinator.indoorUserAnnotation = nil
+            }
+            if let coord = newCoord {
+                let ann = IndoorUserAnnotation(coord)
+                context.coordinator.indoorUserAnnotation = ann
+                mapView.addAnnotation(ann)
+            }
+        }
     }
 
     private func regionEquals(_ a: MKCoordinateRegion?, _ b: MKCoordinateRegion?) -> Bool {
@@ -353,6 +432,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         var indoorLocationAnnotations: [String: IndoorLocationAnnotation] = [:]
         var labelAnnotations: [String: IndoorLabelAnnotation] = [:]
         var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
+        var indoorUserAnnotation: IndoorUserAnnotation? = nil
         var justSelectedAnnotation = false
 
         init(_ parent: MKMapViewRepresentable) {
@@ -463,6 +543,27 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 view?.glyphTintColor = .white
                 view?.clusteringIdentifier = nil
                 view?.canShowCallout = false
+                return view
+            }
+            if annotation is IndoorUserAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.indoorUser, for: annotation)
+                if view.subviews.isEmpty {
+                    let size: CGFloat = 18
+                    let dot = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
+                    dot.backgroundColor = .systemBlue
+                    dot.layer.cornerRadius = size / 2
+                    dot.layer.borderWidth = 2.5
+                    dot.layer.borderColor = UIColor.white.cgColor
+                    dot.layer.shadowColor = UIColor.black.cgColor
+                    dot.layer.shadowOpacity = 0.25
+                    dot.layer.shadowRadius = 3
+                    dot.layer.shadowOffset = CGSize(width: 0, height: 1)
+                    view.addSubview(dot)
+                    view.frame = dot.frame
+                    view.centerOffset = CGPoint(x: 0, y: 0)
+                }
+                view.canShowCallout = false
+                view.clusteringIdentifier = nil
                 return view
             }
             if let indoor = annotation as? IndoorLocationAnnotation {
@@ -695,7 +796,18 @@ struct MapView: View {
     @State private var navigationDestination: CampusLocation?
     
     @StateObject private var locationManager = LocationManager()
+    @StateObject private var snapManager = EntranceSnapManager()
     @State private var hasCenteredOnUser = false
+    @State private var indoorEntrances: [IndoorEntrance] = []
+    @State private var indoorNodesByFloor: [String: [IndoorNode]] = [:]
+    @State private var indoorRoutingGraph: IndoorRoutingGraph? = nil
+    @State private var activeIndoorRoute: IndoorRoute? = nil
+    @State private var isNavigatingIndoors = false
+    @State private var indoorCurrentStepIndex = 0
+    @State private var showIndoorStepsList = false
+    @State private var indoorNavDestinationFloorId = ""
+    @State private var indoorNavigationError: String? = nil
+    @State private var isRoutingFromEntrance = false
     @State private var selectedOutdoorLocation: CampusLocation?
     @State private var indoorBuildings: [IndoorBuilding] = []
     @State private var indoorShapesByFloor: [String: [IndoorShape]] = [:]
@@ -1075,6 +1187,78 @@ struct MapView: View {
         navigationError = nil
         navigationDestination = nil
     }
+
+    private func startIndoorNavigation(to destination: IndoorLocation, onFloor floorId: String) {
+        guard let graph = indoorRoutingGraph else {
+            indoorNavigationError = "Indoor map not loaded yet."
+            return
+        }
+
+        let startCoord: CLLocationCoordinate2D
+        let startFloor: String
+        let fromEntrance: Bool
+
+        if let snappedFloor = snapManager.snappedFloorId,
+           let nearestCoord = snapManager.nearestNodeCoordinate {
+            // User is physically near a building entrance
+            startCoord = nearestCoord
+            startFloor = snappedFloor
+            fromEntrance = false
+        } else {
+            // User is not near an entrance — start from the nearest entrance of this building
+            let buildingEntrances = indoorEntrances.filter { $0.buildingId == selectedBuildingId }
+            guard let entrance = buildingEntrances.first else {
+                indoorNavigationError = "Walk closer to a building entrance to start indoor navigation."
+                return
+            }
+            startCoord = entrance.coordinate
+            startFloor = entrance.floorId
+            fromEntrance = true
+        }
+
+        let floorNames = indoorBuildings
+            .flatMap { $0.floors }
+            .reduce(into: [String: String]()) { $0[$1.id] = $1.name }
+
+        let route = IndoorRouter.route(
+            from: startCoord,
+            startFloorId: startFloor,
+            to: destination,
+            destinationFloorId: floorId,
+            graph: graph,
+            floorNames: floorNames
+        )
+        guard let route else {
+            indoorNavigationError = "Could not find a path to \(destination.name). The room may not be connected to the navigation network."
+            return
+        }
+        activeIndoorRoute = route
+        isNavigatingIndoors = true
+        isRoutingFromEntrance = fromEntrance
+        indoorCurrentStepIndex = 0
+        indoorNavDestinationFloorId = floorId
+        isShowingIndoorDetail = false
+    }
+
+    private func endIndoorNavigation() {
+        activeIndoorRoute = nil
+        isNavigatingIndoors = false
+        indoorCurrentStepIndex = 0
+        isRoutingFromEntrance = false
+    }
+
+    private var currentIndoorRoutePolyline: MKPolyline? {
+        guard let route = activeIndoorRoute,
+              let coords = route.coordinatesByFloor[selectedFloorId],
+              coords.count >= 2 else { return nil }
+        return MKPolyline(coordinates: coords, count: coords.count)
+    }
+
+    private var currentIndoorStep: IndoorRouteStep? {
+        guard let steps = activeIndoorRoute?.steps,
+              steps.indices.contains(indoorCurrentStepIndex) else { return nil }
+        return steps[indoorCurrentStepIndex]
+    }
     
     @MainActor
     private func startDirections(to location: CampusLocation) async {
@@ -1147,9 +1331,10 @@ struct MapView: View {
             labelsByFloor: indoorLabelsByFloor,
             locationsByFloor: indoorLocationsByFloor,
             selectedFloorId: selectedFloorId,
+            indoorUserCoordinate: snapManager.nearestNodeCoordinate,
             onIndoorSelection: handleIndoorSelection,
             outdoorLocations: displayedOutdoorLocations,
-            routePolyline: activeRoute?.polyline,
+            routePolyline: isNavigatingIndoors ? currentIndoorRoutePolyline : activeRoute?.polyline,
             onOutdoorSelection: handleOutdoorSelection,
             onRegionChange: handleRegionChange,
             onEmptyMapTap: { isShowingIndoorDetail = false }
@@ -1202,18 +1387,30 @@ struct MapView: View {
             indoorShapesByFloor = data.shapesByFloor
             indoorLabelsByFloor = data.labelsByFloor
             indoorLocationsByFloor = data.locationsByFloor
+            indoorNodesByFloor = data.nodesByFloor
+            indoorEntrances = data.entrances
             syncSelection(with: data.buildings)
+            if let baseURL = Bundle.main.resourceURL?.appendingPathComponent("CampusIndoorData") {
+                indoorRoutingGraph = IndoorRoutingLoader.load(from: baseURL)
+            }
         }
         .onAppear {
             locationManager.requestPermissionAndStart()
         }
         .onReceive(locationManager.$location) { location in
-            guard let location, !hasCenteredOnUser else { return }
-            hasCenteredOnUser = true
-            focusedRegion = MKCoordinateRegion(
-                center: location.coordinate,
-                span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
+            guard let location else { return }
+            if !hasCenteredOnUser {
+                hasCenteredOnUser = true
+                focusedRegion = MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
+            }
+            if !indoorEntrances.isEmpty {
+                snapManager.update(userLocation: location,
+                                   entrances: indoorEntrances,
+                                   nodesByFloor: indoorNodesByFloor)
+            }
         }
         .onChange(of: appState.selectedBuildingID) { _, newID in
             guard let newID else { return }
@@ -1240,6 +1437,11 @@ struct MapView: View {
                 selectedFloorId = defaultId
                 focusOnBuilding(floorId: defaultId)
             }
+        }
+        .onChange(of: snapManager.snappedBuildingId) { _, newBuildingId in
+            guard let newBuildingId, selectedBuildingId != newBuildingId else { return }
+            selectedBuildingId = newBuildingId
+            // floor auto-follows via onChange(of: selectedBuildingId) above
         }
         .onChange(of: selectedIndoorLocation?.id) { _, newValue in
             if newValue != nil {
@@ -1275,6 +1477,24 @@ struct MapView: View {
             }
         }
         .overlay(alignment: .top) {
+            if let snappedId = snapManager.snappedBuildingId,
+               let building = indoorBuildings.first(where: { $0.id == snappedId }),
+               !isNavigating {
+                HStack(spacing: 8) {
+                    Image(systemName: "building.2.fill")
+                        .foregroundStyle(.blue)
+                    Text("Inside \(building.name)")
+                        .font(.subheadline.weight(.medium))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: Capsule())
+                .padding(.top, 12)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.spring(duration: 0.35), value: snapManager.snappedBuildingId)
+            }
+        }
+        .overlay(alignment: .top) {
             if isNavigating, let currentStep {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Next Direction")
@@ -1288,6 +1508,40 @@ struct MapView: View {
                         Text("Then: \(routeSteps[currentStepIndex + 1].instructions)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.horizontal)
+                .padding(.top, 12)
+            }
+        }
+        .overlay(alignment: .top) {
+            if isNavigatingIndoors, let step = currentIndoorStep {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(isRoutingFromEntrance ? "Preview from Entrance" : "Indoor Navigation")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if isRoutingFromEntrance {
+                            Image(systemName: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Text(step.instruction)
+                        .font(.headline)
+                    if let steps = activeIndoorRoute?.steps,
+                       steps.indices.contains(indoorCurrentStepIndex + 1) {
+                        Text("Then: \(steps[indoorCurrentStepIndex + 1].instruction)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    if isRoutingFromEntrance {
+                        Text("Walk to the building entrance to follow this route.")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
                     }
                 }
                 .padding()
@@ -1315,12 +1569,33 @@ struct MapView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .padding()
+            } else if isNavigatingIndoors {
+                Button(role: .destructive) {
+                    endIndoorNavigation()
+                } label: {
+                    Label("Exit Indoor Route", systemImage: "xmark.circle.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .padding()
             }
         }
         .overlay(alignment: .bottomTrailing) {
             if isNavigating {
                 Button {
                     showDirectionsList = true
+                } label: {
+                    Image(systemName: "list.bullet")
+                        .font(.title2)
+                        .padding()
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .padding(.trailing, 20)
+                .padding(.bottom, 90)
+            } else if isNavigatingIndoors {
+                Button {
+                    showIndoorStepsList = true
                 } label: {
                     Image(systemName: "list.bullet")
                         .font(.title2)
@@ -1341,12 +1616,17 @@ struct MapView: View {
         .sheet(isPresented: $isShowingIndoorDetail) {
             ZStack {
                 if let location = selectedIndoorLocation {
-                    IndoorLocationDetailView(location: location)
-                        .id(location.id)
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .opacity
-                        ))
+                    IndoorLocationDetailView(
+                        location: location,
+                        onNavigate: {
+                            startIndoorNavigation(to: location, onFloor: selectedFloorId)
+                        }
+                    )
+                    .id(location.id)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .opacity
+                    ))
                 }
             }
             .presentationDetents([.height(220), .medium, .large], selection: $detailDetent)
@@ -1360,6 +1640,15 @@ struct MapView: View {
                 destinationName: navigationDestination?.name ?? "Destination"
             )
         }
+        .sheet(isPresented: $showIndoorStepsList) {
+            if let route = activeIndoorRoute {
+                IndoorStepsView(
+                    steps: route.steps,
+                    currentStepIndex: indoorCurrentStepIndex,
+                    destinationName: route.destinationName
+                )
+            }
+        }
         .alert("Navigation Error", isPresented: Binding(
             get: { navigationError != nil },
             set: { if !$0 { navigationError = nil } }
@@ -1367,6 +1656,14 @@ struct MapView: View {
             Button("OK", role: .cancel) { navigationError = nil }
         } message: {
             Text(navigationError ?? "")
+        }
+        .alert("Indoor Navigation Error", isPresented: Binding(
+            get: { indoorNavigationError != nil },
+            set: { if !$0 { indoorNavigationError = nil } }
+        )) {
+            Button("OK", role: .cancel) { indoorNavigationError = nil }
+        } message: {
+            Text(indoorNavigationError ?? "")
         }
     }
 
@@ -1461,6 +1758,7 @@ struct MapView: View {
 
 private struct IndoorLocationDetailView: View {
     let location: IndoorLocation
+    let onNavigate: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -1480,6 +1778,16 @@ private struct IndoorLocationDetailView: View {
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(.secondary)
                         }
+                    }
+
+                    if let onNavigate {
+                        Button {
+                            onNavigate()
+                        } label: {
+                            Label("Navigate", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
 
                     if !location.openingHours.isEmpty {

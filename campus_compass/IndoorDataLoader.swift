@@ -123,18 +123,26 @@ struct IndoorNode: Identifiable {
     let coordinate: CLLocationCoordinate2D
 }
 
+struct IndoorEntrance {
+    let buildingId: String
+    let floorId: String
+    let coordinate: CLLocationCoordinate2D
+}
+
 struct IndoorDataset {
     let buildings: [IndoorBuilding]
     let shapesByFloor: [String: [IndoorShape]]
     let labelsByFloor: [String: [IndoorLabel]]
     let locationsByFloor: [String: [IndoorLocation]]
     let nodesByFloor: [String: [IndoorNode]]
+    let entrances: [IndoorEntrance]
 
     static let empty = IndoorDataset(buildings: [],
                                      shapesByFloor: [:],
                                      labelsByFloor: [:],
                                      locationsByFloor: [:],
-                                     nodesByFloor: [:])
+                                     nodesByFloor: [:],
+                                     entrances: [])
 }
 
 enum IndoorDataLoader {
@@ -203,6 +211,9 @@ enum IndoorDataLoader {
                                              geometryKindsByFloor: geometryKindsByFloor,
                                              roomUsesByGeometryId: roomUsesByGeometryId)
         let nodesByFloor = loadNodes(from: baseURL, decoder: decoder)
+        let entrances = loadEntrances(from: baseURL,
+                                      floorStacks: floorStacks,
+                                      geometryCentersByFloor: geometryCentersByFloor)
 
         var buildings: [IndoorBuilding] = []
         if !floorStacks.isEmpty {
@@ -239,7 +250,8 @@ enum IndoorDataLoader {
                              shapesByFloor: shapesByFloor,
                              labelsByFloor: labelsByFloor,
                              locationsByFloor: locationsByFloor,
-                             nodesByFloor: nodesByFloor)
+                             nodesByFloor: nodesByFloor,
+                             entrances: entrances)
     }
 
     private static func loadFloorStacks(from baseURL: URL) -> [FloorStackDTO] {
@@ -782,6 +794,29 @@ enum IndoorDataLoader {
             }
             return .room
         }
+    }
+
+    private static func loadEntrances(from baseURL: URL,
+                                      floorStacks: [FloorStackDTO],
+                                      geometryCentersByFloor: [String: [String: CLLocationCoordinate2D]]) -> [IndoorEntrance] {
+        let entranceBase = baseURL.appendingPathComponent("entrance-aesthetic")
+        var result: [IndoorEntrance] = []
+
+        for stack in floorStacks {
+            for floorId in stack.floors {
+                let url = entranceBase.appendingPathComponent("\(floorId).json")
+                guard let data = try? Data(contentsOf: url),
+                      let entries = try? JSONDecoder().decode([EntranceAestheticDTO].self, from: data),
+                      let centers = geometryCentersByFloor[floorId] else { continue }
+                for entry in entries {
+                    guard let coordinate = centers[entry.geometryId] else { continue }
+                    result.append(IndoorEntrance(buildingId: stack.id,
+                                                 floorId: floorId,
+                                                 coordinate: coordinate))
+                }
+            }
+        }
+        return result
     }
 
     private static func loadConnectionUses(from url: URL) -> [String: RoomUse] {
