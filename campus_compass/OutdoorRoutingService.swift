@@ -43,12 +43,19 @@ struct OutdoorRouteCoordinator {
 struct CampusGraphRouter {
     private let dataset: OutdoorGraphDataset
     private let nodesByID: [String: OutdoorGraphNode]
+    private let edgesByNodePair: [String: OutdoorGraphEdge]
     private let nearestNodeThreshold: CLLocationDistance = 150
+    private let leadingEdgeJoinThreshold: CLLocationDistance = 30
     private let arrivalSpeedMetersPerSecond: CLLocationDistance = 1.4
 
     init(dataset: OutdoorGraphDataset) {
         self.dataset = dataset
         self.nodesByID = Dictionary(uniqueKeysWithValues: dataset.nodes.map { ($0.id, $0) })
+        self.edgesByNodePair = Dictionary(
+            uniqueKeysWithValues: dataset.edges.map { edge in
+                ("\(edge.fromNodeID)->\(edge.toNodeID)", edge)
+            }
+        )
     }
 
     func route(
@@ -82,11 +89,10 @@ struct CampusGraphRouter {
         guard !pathNodes.isEmpty else { return nil }
 
         var coordinates: [CLLocationCoordinate2D] = [origin]
-        for node in pathNodes {
-            if !sameCoordinate(node.coordinate, coordinates.last) {
-                coordinates.append(node.coordinate)
-            }
-        }
+        appendCoordinates(
+            edgeCoordinates(for: pathNodeIDs, origin: origin),
+            into: &coordinates
+        )
         if !sameCoordinate(destinationCoordinate, coordinates.last) {
             coordinates.append(destinationCoordinate)
         }
@@ -212,6 +218,193 @@ struct CampusGraphRouter {
         return results
     }
 
+    private func edgeCoordinates(
+        for nodeIDs: [String],
+        origin: CLLocationCoordinate2D
+    ) -> [CLLocationCoordinate2D] {
+        let nodePairs = Array(zip(nodeIDs, nodeIDs.dropFirst()))
+        var coordinates: [CLLocationCoordinate2D] = []
+
+        if nodePairs.isEmpty, let firstNodeID = nodeIDs.first, let firstNode = nodesByID[firstNodeID] {
+            coordinates.append(firstNode.coordinate)
+        }
+
+        if let firstPair = nodePairs.first {
+            appendCoordinates(
+                trimmedLeadingEdgeCoordinates(
+                    from: firstPair.0,
+                    to: firstPair.1,
+                    origin: origin
+                ),
+                into: &coordinates
+            )
+        }
+
+        for pair in nodePairs.dropFirst() {
+            appendCoordinates(
+                shapedCoordinates(from: pair.0, to: pair.1),
+                into: &coordinates
+            )
+        }
+
+        return coordinates
+    }
+
+    private func shapedCoordinates(from fromNodeID: String, to toNodeID: String) -> [CLLocationCoordinate2D] {
+        if let edge = edge(from: fromNodeID, to: toNodeID) {
+            return coordinates(for: edge, travelingFrom: fromNodeID, to: toNodeID)
+        }
+
+        guard let fromNode = nodesByID[fromNodeID], let toNode = nodesByID[toNodeID] else {
+            return []
+        }
+
+        return [fromNode.coordinate, toNode.coordinate]
+    }
+
+    private func edge(from fromNodeID: String, to toNodeID: String) -> OutdoorGraphEdge? {
+        if let exact = edgesByNodePair["\(fromNodeID)->\(toNodeID)"] {
+            return exact
+        }
+
+        if let reversed = edgesByNodePair["\(toNodeID)->\(fromNodeID)"], reversed.bidirectional {
+            return reversed
+        }
+
+        return nil
+    }
+
+    private func coordinates(
+        for edge: OutdoorGraphEdge,
+        travelingFrom fromNodeID: String,
+        to toNodeID: String
+    ) -> [CLLocationCoordinate2D] {
+        let shapeCoordinates = (edge.shape ?? []).map(\.coordinate)
+
+        guard !shapeCoordinates.isEmpty else {
+            return fallbackCoordinates(from: fromNodeID, to: toNodeID)
+        }
+
+        let isForward = edge.fromNodeID == fromNodeID && edge.toNodeID == toNodeID
+        let isReverse = edge.bidirectional && edge.fromNodeID == toNodeID && edge.toNodeID == fromNodeID
+
+        if isForward {
+            return normalizeShape(shapeCoordinates, from: fromNodeID, to: toNodeID)
+        }
+
+        if isReverse {
+            return normalizeShape(shapeCoordinates.reversed(), from: fromNodeID, to: toNodeID)
+        }
+
+        return fallbackCoordinates(from: fromNodeID, to: toNodeID)
+    }
+
+    private func normalizeShape(
+        _ shapeCoordinates: [CLLocationCoordinate2D],
+        from fromNodeID: String,
+        to toNodeID: String
+    ) -> [CLLocationCoordinate2D] {
+        guard
+            let fromNode = nodesByID[fromNodeID],
+            let toNode = nodesByID[toNodeID]
+        else {
+            return Array(shapeCoordinates)
+        }
+
+        var normalized = Array(shapeCoordinates)
+        if !sameCoordinate(fromNode.coordinate, normalized.first) {
+            normalized.insert(fromNode.coordinate, at: 0)
+        }
+        if !sameCoordinate(toNode.coordinate, normalized.last) {
+            normalized.append(toNode.coordinate)
+        }
+        return normalized
+    }
+
+    private func fallbackCoordinates(from fromNodeID: String, to toNodeID: String) -> [CLLocationCoordinate2D] {
+        guard let fromNode = nodesByID[fromNodeID], let toNode = nodesByID[toNodeID] else {
+            return []
+        }
+        return [fromNode.coordinate, toNode.coordinate]
+    }
+
+    private func trimmedLeadingEdgeCoordinates(
+        from fromNodeID: String,
+        to toNodeID: String,
+        origin: CLLocationCoordinate2D
+    ) -> [CLLocationCoordinate2D] {
+        let coordinates = shapedCoordinates(from: fromNodeID, to: toNodeID)
+        guard coordinates.count >= 2 else { return coordinates }
+
+        guard let projection = projectedPoint(from: origin, onto: coordinates),
+              projection.distanceToPath <= leadingEdgeJoinThreshold else {
+            return coordinates
+        }
+
+        var trimmed: [CLLocationCoordinate2D] = [projection.coordinate]
+        let remainingCoordinates = coordinates.dropFirst(projection.nextCoordinateIndex)
+        appendCoordinates(Array(remainingCoordinates), into: &trimmed)
+        return trimmed
+    }
+
+    private func projectedPoint(
+        from origin: CLLocationCoordinate2D,
+        onto coordinates: [CLLocationCoordinate2D]
+    ) -> ProjectedPathPoint? {
+        guard coordinates.count >= 2 else { return nil }
+
+        let originPoint = MKMapPoint(origin)
+        var bestProjection: ProjectedPathPoint?
+
+        for (index, pair) in zip(coordinates.indices, zip(coordinates, coordinates.dropFirst())) {
+            let startPoint = MKMapPoint(pair.0)
+            let endPoint = MKMapPoint(pair.1)
+            let dx = endPoint.x - startPoint.x
+            let dy = endPoint.y - startPoint.y
+            let segmentLengthSquared = dx * dx + dy * dy
+
+            let projectionPoint: MKMapPoint
+            if segmentLengthSquared <= .ulpOfOne {
+                projectionPoint = startPoint
+            } else {
+                let t = max(
+                    0,
+                    min(
+                        1,
+                        ((originPoint.x - startPoint.x) * dx + (originPoint.y - startPoint.y) * dy)
+                            / segmentLengthSquared
+                    )
+                )
+                projectionPoint = MKMapPoint(
+                    x: startPoint.x + dx * t,
+                    y: startPoint.y + dy * t
+                )
+            }
+
+            let distanceToPath = originPoint.distance(to: projectionPoint)
+            let candidate = ProjectedPathPoint(
+                coordinate: projectionPoint.coordinate,
+                distanceToPath: distanceToPath,
+                nextCoordinateIndex: index + 1
+            )
+
+            if bestProjection == nil || distanceToPath < bestProjection!.distanceToPath {
+                bestProjection = candidate
+            }
+        }
+
+        return bestProjection
+    }
+
+    private func appendCoordinates(
+        _ newCoordinates: [CLLocationCoordinate2D],
+        into coordinates: inout [CLLocationCoordinate2D]
+    ) {
+        for coordinate in newCoordinates where !sameCoordinate(coordinate, coordinates.last) {
+            coordinates.append(coordinate)
+        }
+    }
+
     private func edgeDistance(for nodeIDs: [String]) -> CLLocationDistance {
         zip(nodeIDs, nodeIDs.dropFirst()).reduce(0) { partialResult, pair in
             partialResult + edgeDistance(from: pair.0, to: pair.1)
@@ -251,6 +444,12 @@ struct CampusGraphRouter {
         return abs(lhs.latitude - rhs.latitude) < 0.000001
             && abs(lhs.longitude - rhs.longitude) < 0.000001
     }
+}
+
+private struct ProjectedPathPoint {
+    let coordinate: CLLocationCoordinate2D
+    let distanceToPath: CLLocationDistance
+    let nextCoordinateIndex: Int
 }
 
 struct AppleDirectionsRouter {

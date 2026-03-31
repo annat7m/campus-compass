@@ -122,6 +122,15 @@ struct OutdoorGraphNode: Identifiable, Codable, Hashable {
     }
 }
 
+struct OutdoorGraphShapePoint: Codable, Hashable {
+    let latitude: Double
+    let longitude: Double
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
 struct OutdoorGraphEdge: Identifiable, Codable, Hashable {
     let id: String
     let fromNodeID: String
@@ -130,6 +139,7 @@ struct OutdoorGraphEdge: Identifiable, Codable, Hashable {
     let penalty: Double
     let bidirectional: Bool
     let pathType: String?
+    let shape: [OutdoorGraphShapePoint]?
 }
 
 struct OutdoorBuildingAnchor: Identifiable, Codable, Hashable {
