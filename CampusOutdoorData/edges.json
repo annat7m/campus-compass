@@ -1,74 +1,110 @@
 [
   {
-    "id": "edge-uc-tran",
-    "fromNodeID": "uc-front",
-    "toNodeID": "tran-west",
+    "id": "edge-university-ave-uc-fork",
+    "fromNodeID": "university-ave-walk",
+    "toNodeID": "uc-fork-walk",
     "distance": 62.0,
     "penalty": 0.0,
     "bidirectional": true,
     "pathType": "walkway"
   },
   {
-    "id": "edge-tran-central",
-    "fromNodeID": "tran-west",
-    "toNodeID": "central-crossing",
-    "distance": 54.0,
+    "id": "edge-uc-fork-tromble-main",
+    "fromNodeID": "uc-fork-walk",
+    "toNodeID": "tromble-main-walk-start",
+    "distance": 68.0,
     "penalty": 0.0,
     "bidirectional": true,
     "pathType": "walkway"
   },
   {
-    "id": "edge-central-strain",
-    "fromNodeID": "central-crossing",
+    "id": "edge-tromble-main-aucoin",
+    "fromNodeID": "tromble-main-walk-start",
+    "toNodeID": "tromble-aucoin-walk",
+    "distance": 40.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-aucoin-tran-walk",
+    "fromNodeID": "tromble-aucoin-walk",
+    "toNodeID": "tromble-tran-walk",
+    "distance": 28.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-tromble-main-uc-tran",
+    "fromNodeID": "tromble-main-walk-start",
+    "toNodeID": "tromble-uc-tran-walk",
+    "distance": 41.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-uc-tran-tran-walk",
+    "fromNodeID": "tromble-uc-tran-walk",
+    "toNodeID": "tromble-tran-walk",
+    "distance": 31.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-tran-walk-tran-west",
+    "fromNodeID": "tromble-tran-walk",
+    "toNodeID": "tran-west",
+    "distance": 16.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-uc-tran-east-corner",
+    "fromNodeID": "tromble-uc-tran-walk",
+    "toNodeID": "tromble-east-corner-walk",
+    "distance": 96.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-east-corner-strain",
+    "fromNodeID": "tromble-east-corner-walk",
     "toNodeID": "strain-entry",
-    "distance": 78.0,
+    "distance": 35.0,
     "penalty": 0.0,
     "bidirectional": true,
     "pathType": "walkway"
   },
   {
-    "id": "edge-central-price",
-    "fromNodeID": "central-crossing",
+    "id": "edge-east-corner-price",
+    "fromNodeID": "tromble-east-corner-walk",
     "toNodeID": "price-main",
-    "distance": 58.0,
-    "penalty": 8.0,
-    "bidirectional": true,
-    "pathType": "secondary"
-  },
-  {
-    "id": "edge-strain-berglund",
-    "fromNodeID": "strain-entry",
-    "toNodeID": "berglund-entry",
-    "distance": 124.0,
+    "distance": 14.0,
     "penalty": 0.0,
     "bidirectional": true,
     "pathType": "walkway"
   },
   {
-    "id": "edge-tran-marsh",
-    "fromNodeID": "tran-west",
-    "toNodeID": "marsh-crossing",
-    "distance": 146.0,
-    "penalty": 3.0,
-    "bidirectional": true,
-    "pathType": "walkway"
-  },
-  {
-    "id": "edge-marsh-carnegie",
-    "fromNodeID": "marsh-crossing",
-    "toNodeID": "carnegie-entry",
-    "distance": 115.0,
+    "id": "edge-aucoin-marsh-corner",
+    "fromNodeID": "tromble-aucoin-walk",
+    "toNodeID": "marsh-corner-walk",
+    "distance": 22.0,
     "penalty": 0.0,
     "bidirectional": true,
     "pathType": "walkway"
   },
   {
-    "id": "edge-carnegie-old-college",
-    "fromNodeID": "carnegie-entry",
-    "toNodeID": "old-college-entry",
-    "distance": 48.0,
+    "id": "edge-marsh-corner-entrance",
+    "fromNodeID": "marsh-corner-walk",
+    "toNodeID": "marsh-west-entrance",
+    "distance": 25.0,
     "penalty": 0.0,
     "bidirectional": true,
-    "pathType": "walkway"
+    "pathType": "entrance"
   }
 ]

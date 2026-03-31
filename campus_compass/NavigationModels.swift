@@ -78,10 +78,28 @@ enum NavigationRouteSource {
     }
 }
 
-struct NavigationStep: Identifiable, Hashable {
+struct NavigationStep: Identifiable {
     let id = UUID()
     let instruction: String
     let distance: CLLocationDistance
+    let targetLatitude: Double?
+    let targetLongitude: Double?
+
+    init(
+        instruction: String,
+        distance: CLLocationDistance,
+        targetCoordinate: CLLocationCoordinate2D? = nil
+    ) {
+        self.instruction = instruction
+        self.distance = distance
+        self.targetLatitude = targetCoordinate?.latitude
+        self.targetLongitude = targetCoordinate?.longitude
+    }
+
+    var targetCoordinate: CLLocationCoordinate2D? {
+        guard let targetLatitude, let targetLongitude else { return nil }
+        return CLLocationCoordinate2D(latitude: targetLatitude, longitude: targetLongitude)
+    }
 }
 
 struct NavigationRoute {

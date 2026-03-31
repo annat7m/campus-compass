@@ -1,21 +1,9 @@
 [
   {
-    "id": "uc-front",
-    "latitude": 45.52196,
-    "longitude": -123.10934,
-    "name": "University Center Front"
-  },
-  {
     "id": "tran-west",
     "latitude": 45.521376,
     "longitude": -123.108990,
     "name": "Tran Library West Walk"
-  },
-  {
-    "id": "central-crossing",
-    "latitude": 45.521620,
-    "longitude": -123.107990,
-    "name": "Central Crossing"
   },
   {
     "id": "strain-entry",
@@ -24,33 +12,63 @@
     "name": "Strain Science Center Entry"
   },
   {
-    "id": "berglund-entry",
-    "latitude": 45.520965,
-    "longitude": -123.107666,
-    "name": "Berglund Hall Entry"
-  },
-  {
     "id": "price-main",
     "latitude": 45.521787,
     "longitude": -123.107716,
     "name": "Price Hall Main Entrance"
   },
   {
-    "id": "marsh-crossing",
-    "latitude": 45.520833,
-    "longitude": -123.109675,
-    "name": "Marsh Hall Crossing"
+    "id": "marsh-west-entrance",
+    "latitude": 45.52095,
+    "longitude": -123.10961,
+    "name": "Marsh Hall Entrance"
   },
   {
-    "id": "carnegie-entry",
-    "latitude": 45.52029,
-    "longitude": -123.11036,
-    "name": "Carnegie Hall Entry"
+    "id": "marsh-corner-walk",
+    "latitude": 45.521174,
+    "longitude": -123.10967,
+    "name": "path between Aucoin and Marsh"
   },
   {
-    "id": "old-college-entry",
-    "latitude": 45.52037,
-    "longitude": -123.11070,
-    "name": "Old College Hall Entry"
+    "id": "university-ave-walk",
+    "latitude": 45.522848,
+    "longitude": -123.109484,
+    "name": "University Ave Start"
+  },
+  {
+    "id": "uc-fork-walk",
+    "latitude": 45.522289,
+    "longitude": -123.109479,
+    "name": "Fork between uc and walter"
+  },
+  {
+    "id": "tromble-main-walk-start",
+    "latitude": 45.521677,
+    "longitude": -123.109477,
+    "name": "Tromble Main Start"
+  },
+  {
+    "id": "tromble-aucoin-walk",
+    "latitude": 45.521315,
+    "longitude": -123.109482,
+    "name": "sidewalk in front of aucoin"
+  },
+  {
+    "id": "tromble-tran-walk",
+    "latitude": 45.521436,
+    "longitude": -123.109173,
+    "name": "sidewalk in front of tran"
+  },
+  {
+    "id": "tromble-uc-tran-walk",
+    "latitude": 45.521665,
+    "longitude": -123.108949,
+    "name": "tromble fork between uc and tran"
+  },
+  {
+    "id": "tromble-east-corner-walk",
+    "latitude": 45.521661,
+    "longitude": -123.107715,
+    "name": "tromble corner on price and strain"
   }
 ]

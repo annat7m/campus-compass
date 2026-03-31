@@ -8,6 +8,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import SwiftData
 
 struct LocationPreviewSheet: View {
     let location: CampusLocation
@@ -218,11 +219,21 @@ private final class OutdoorPlaceAnnotation: NSObject, MKAnnotation {
     }
 }
 
+private final class UserLocationAnnotation: NSObject, MKAnnotation {
+    dynamic var coordinate: CLLocationCoordinate2D
+
+    init(coordinate: CLLocationCoordinate2D) {
+        self.coordinate = coordinate
+        super.init()
+    }
+}
+
 private enum AnnotationReuseId {
     static let indoor = "indoorLocation"
     static let outdoor = "outdoorPlace"
     static let label = "indoorLabel"
     static let cluster = "indoorCluster"
+    static let user = "userLocation"
 }
 
 /// Wraps a polygon or polyline with kind/use so the delegate can style it.
@@ -271,6 +282,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     let locationsByFloor: [String: [IndoorLocation]]
     var selectedFloorId: String
     @Binding var selectedLocation: IndoorLocation?
+    let userCoordinate: CLLocationCoordinate2D?
     let outdoorLocations: [CampusLocation]
     let routePolyline: MKPolyline?
     let onOutdoorSelection: (CampusLocation) -> Void
@@ -283,7 +295,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
         mapView.delegate = context.coordinator
-        mapView.showsUserLocation = true
+        mapView.showsUserLocation = false
         mapView.preferredConfiguration = MKStandardMapConfiguration()
         mapView.region = region
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.indoor)
@@ -313,6 +325,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             mapView: mapView,
             indoorLocations: showIndoor ? activeLocations : [],
             labels: showIndoor ? activeLabels : [],
+            userCoordinate: userCoordinate,
             outdoor: outdoorLocations
         )
     }
@@ -371,6 +384,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         var indoorLocationAnnotations: [String: IndoorLocationAnnotation] = [:]
         var labelAnnotations: [String: IndoorLabelAnnotation] = [:]
         var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
+        var userLocationAnnotation: UserLocationAnnotation?
 
         init(_ parent: MKMapViewRepresentable) {
             self.parent = parent
@@ -407,7 +421,13 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             }
         }
 
-        func syncAnnotations(mapView: MKMapView, indoorLocations: [IndoorLocation], labels: [IndoorLabel], outdoor: [CampusLocation]) {
+        func syncAnnotations(
+            mapView: MKMapView,
+            indoorLocations: [IndoorLocation],
+            labels: [IndoorLabel],
+            userCoordinate: CLLocationCoordinate2D?,
+            outdoor: [CampusLocation]
+        ) {
             var toAdd: [MKAnnotation] = []
             var toRemove: [MKAnnotation] = []
 
@@ -460,6 +480,19 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 }
             }
 
+            if let userCoordinate {
+                if let annotation = userLocationAnnotation {
+                    annotation.coordinate = userCoordinate
+                } else {
+                    let annotation = UserLocationAnnotation(coordinate: userCoordinate)
+                    userLocationAnnotation = annotation
+                    toAdd.append(annotation)
+                }
+            } else if let annotation = userLocationAnnotation {
+                userLocationAnnotation = nil
+                toRemove.append(annotation)
+            }
+
             if !toRemove.isEmpty {
                 mapView.removeAnnotations(toRemove)
             }
@@ -469,7 +502,6 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-            if annotation is MKUserLocation { return nil }
             if let cluster = annotation as? MKClusterAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.cluster, for: cluster) as? MKMarkerAnnotationView
                 view?.markerTintColor = .systemGray
@@ -518,6 +550,21 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 view?.glyphTintColor = nil
                 view?.clusteringIdentifier = nil
                 view?.canShowCallout = false
+                return view
+            }
+            if annotation is UserLocationAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.user) ?? MKAnnotationView(annotation: annotation, reuseIdentifier: AnnotationReuseId.user)
+                view.annotation = annotation
+                view.frame = CGRect(x: 0, y: 0, width: 20, height: 20)
+                view.backgroundColor = .systemBlue
+                view.layer.cornerRadius = 10
+                view.layer.borderWidth = 3
+                view.layer.borderColor = UIColor.white.cgColor
+                view.layer.shadowColor = UIColor.black.withAlphaComponent(0.2).cgColor
+                view.layer.shadowOpacity = 1
+                view.layer.shadowRadius = 4
+                view.layer.shadowOffset = CGSize(width: 0, height: 2)
+                view.canShowCallout = false
                 return view
             }
             return nil
@@ -679,6 +726,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
 struct MapView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var buildingStore: BuildingStore
+    @Environment(\.modelContext) private var modelContext
+    @Query private var profiles: [UserProfile]
     
     
     @State private var showDirectionsList = false
@@ -688,6 +737,7 @@ struct MapView: View {
     @State private var isCalculatingRoute = false
     @State private var navigationError: String?
     @State private var navigationDestination: CampusLocation?
+    @State private var hasLoggedArrivalForActiveRoute = false
     
     @StateObject private var locationManager = LocationManager()
     @State private var hasCenteredOnUser = false
@@ -706,6 +756,8 @@ struct MapView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
     @State private var focusedRegion: MKCoordinateRegion?
+
+    private let graphStepArrivalThreshold: CLLocationDistance = 12
     
     private var routeSteps: [NavigationStep] {
         activeNavigationRoute?.steps ?? []
@@ -714,6 +766,22 @@ struct MapView: View {
     private var currentStep: NavigationStep? {
         guard routeSteps.indices.contains(currentStepIndex) else { return nil }
         return routeSteps[currentStepIndex]
+    }
+
+    private var displayedRoutePolyline: MKPolyline? {
+        guard let route = activeNavigationRoute else { return nil }
+        guard
+            isNavigating,
+            let userCoordinate = locationManager.location?.coordinate,
+            let remainingPolyline = remainingRoutePolyline(
+                routeCoordinates: route.coordinates,
+                userCoordinate: userCoordinate
+            )
+        else {
+            return route.polyline
+        }
+
+        return remainingPolyline
     }
 
     private var routeCoordinator: OutdoorRouteCoordinator {
@@ -1094,6 +1162,7 @@ struct MapView: View {
         isCalculatingRoute = false
         navigationError = nil
         navigationDestination = nil
+        hasLoggedArrivalForActiveRoute = false
     }
     
     @MainActor
@@ -1110,6 +1179,7 @@ struct MapView: View {
         isCalculatingRoute = true
         navigationError = nil
         currentStepIndex = 0
+        hasLoggedArrivalForActiveRoute = false
 
         do {
             let route = try await routeCoordinator.route(
@@ -1147,8 +1217,9 @@ struct MapView: View {
             locationsByFloor: indoorLocationsByFloor,
             selectedFloorId: selectedFloorId,
             selectedLocation: $selectedIndoorLocation,
+            userCoordinate: locationManager.location?.coordinate,
             outdoorLocations: displayedOutdoorLocations,
-            routePolyline: activeNavigationRoute?.polyline,
+            routePolyline: displayedRoutePolyline,
             onOutdoorSelection: { location in
                 selectedIndoorLocation = nil
                 selectedOutdoorLocation = location
@@ -1184,12 +1255,17 @@ struct MapView: View {
             locationManager.requestPermissionAndStart()
         }
         .onReceive(locationManager.$location) { location in
-            guard let location, !hasCenteredOnUser else { return }
-            hasCenteredOnUser = true
-            focusedRegion = MKCoordinateRegion(
-                center: location.coordinate,
-                span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-            )
+            guard let location else { return }
+
+            if !hasCenteredOnUser {
+                hasCenteredOnUser = true
+                focusedRegion = MKCoordinateRegion(
+                    center: location.coordinate,
+                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                )
+            }
+
+            updateNavigationProgress(using: location)
         }
         .onChange(of: appState.selectedBuildingID) { _, newID in
             guard let newID else { return }
@@ -1280,17 +1356,20 @@ struct MapView: View {
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
         }
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: .bottomLeading) {
             if isNavigating {
-                Button(role: .destructive) {
+                Button {
                     endNavigation()
                 } label: {
-                    Label("Exit Route", systemImage: "xmark.circle.fill")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
+                    Image(systemName: "xmark")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(.red)
+                        .frame(width: 56, height: 56)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
-                .buttonStyle(.borderedProminent)
-                .padding()
+                .buttonStyle(.plain)
+                .padding(.leading, 20)
+                .padding(.bottom, 90)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -1379,6 +1458,161 @@ struct MapView: View {
         }
     }
 
+    private func updateNavigationProgress(using location: CLLocation) {
+        guard
+            isNavigating,
+            let route = activeNavigationRoute,
+            route.source == .campusGraph,
+            !routeSteps.isEmpty
+        else {
+            return
+        }
+
+        var updatedIndex = currentStepIndex
+        while updatedIndex < routeSteps.count - 1 {
+            let step = routeSteps[updatedIndex]
+            guard let target = step.targetCoordinate else { break }
+
+            let targetLocation = CLLocation(latitude: target.latitude, longitude: target.longitude)
+            let distanceToTarget = location.distance(from: targetLocation)
+            guard distanceToTarget <= graphStepArrivalThreshold else { break }
+
+            updatedIndex += 1
+        }
+
+        if updatedIndex != currentStepIndex {
+            currentStepIndex = updatedIndex
+        }
+
+        recordArrivalIfNeeded(using: location)
+    }
+
+    private func recordArrivalIfNeeded(using location: CLLocation) {
+        guard
+            isNavigating,
+            !hasLoggedArrivalForActiveRoute,
+            let destination = navigationDestination
+        else {
+            return
+        }
+
+        let targetLocation = CLLocation(
+            latitude: destination.coordinate.latitude,
+            longitude: destination.coordinate.longitude
+        )
+        guard location.distance(from: targetLocation) <= graphStepArrivalThreshold else {
+            return
+        }
+
+        guard let profile = profiles.first else {
+            hasLoggedArrivalForActiveRoute = true
+            return
+        }
+
+        let normalizedDestination = normalizedOutdoorKey(name: destination.name)
+        profile.recentLocations.removeAll {
+            normalizedOutdoorKey(name: $0) == normalizedDestination
+        }
+        profile.recentLocations.insert(destination.name, at: 0)
+
+        if profile.recentLocations.count > 10 {
+            profile.recentLocations = Array(profile.recentLocations.prefix(10))
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save recent location: \(error)")
+        }
+
+        hasLoggedArrivalForActiveRoute = true
+    }
+
+    private func remainingRoutePolyline(
+        routeCoordinates: [CLLocationCoordinate2D],
+        userCoordinate: CLLocationCoordinate2D
+    ) -> MKPolyline? {
+        guard routeCoordinates.count >= 2 else {
+            guard !routeCoordinates.isEmpty else { return nil }
+            return MKPolyline(coordinates: routeCoordinates, count: routeCoordinates.count)
+        }
+
+        guard let projection = projectedPoint(from: userCoordinate, onto: routeCoordinates) else {
+            return MKPolyline(coordinates: routeCoordinates, count: routeCoordinates.count)
+        }
+
+        var remainingCoordinates: [CLLocationCoordinate2D] = [projection.coordinate]
+        let tail = Array(routeCoordinates.dropFirst(projection.nextCoordinateIndex))
+        appendUniqueCoordinates(tail, into: &remainingCoordinates)
+
+        guard !remainingCoordinates.isEmpty else { return nil }
+        return MKPolyline(coordinates: remainingCoordinates, count: remainingCoordinates.count)
+    }
+
+    private func projectedPoint(
+        from origin: CLLocationCoordinate2D,
+        onto coordinates: [CLLocationCoordinate2D]
+    ) -> ProjectedRoutePoint? {
+        guard coordinates.count >= 2 else { return nil }
+
+        let originPoint = MKMapPoint(origin)
+        var bestProjection: ProjectedRoutePoint?
+
+        for (index, pair) in zip(coordinates.indices, zip(coordinates, coordinates.dropFirst())) {
+            let startPoint = MKMapPoint(pair.0)
+            let endPoint = MKMapPoint(pair.1)
+            let dx = endPoint.x - startPoint.x
+            let dy = endPoint.y - startPoint.y
+            let segmentLengthSquared = dx * dx + dy * dy
+
+            let projectionPoint: MKMapPoint
+            if segmentLengthSquared <= .ulpOfOne {
+                projectionPoint = startPoint
+            } else {
+                let t = max(
+                    0,
+                    min(
+                        1,
+                        ((originPoint.x - startPoint.x) * dx + (originPoint.y - startPoint.y) * dy)
+                            / segmentLengthSquared
+                    )
+                )
+                projectionPoint = MKMapPoint(
+                    x: startPoint.x + dx * t,
+                    y: startPoint.y + dy * t
+                )
+            }
+
+            let distanceToPath = originPoint.distance(to: projectionPoint)
+            let candidate = ProjectedRoutePoint(
+                coordinate: projectionPoint.coordinate,
+                distanceToPath: distanceToPath,
+                nextCoordinateIndex: index + 1
+            )
+
+            if bestProjection == nil || distanceToPath < bestProjection!.distanceToPath {
+                bestProjection = candidate
+            }
+        }
+
+        return bestProjection
+    }
+
+    private func appendUniqueCoordinates(
+        _ newCoordinates: [CLLocationCoordinate2D],
+        into coordinates: inout [CLLocationCoordinate2D]
+    ) {
+        for coordinate in newCoordinates where !sameCoordinate(coordinate, coordinates.last) {
+            coordinates.append(coordinate)
+        }
+    }
+
+    private func sameCoordinate(_ lhs: CLLocationCoordinate2D, _ rhs: CLLocationCoordinate2D?) -> Bool {
+        guard let rhs else { return false }
+        return abs(lhs.latitude - rhs.latitude) < 0.000001
+            && abs(lhs.longitude - rhs.longitude) < 0.000001
+    }
+
     private func focusOnBuilding(floorId: String) {
         guard let rect = mapRect(for: floorId) else { return }
         guard rect.size.width > 0, rect.size.height > 0 else { return }
@@ -1428,6 +1662,12 @@ struct MapView: View {
         }
         return combined
     }
+}
+
+private struct ProjectedRoutePoint {
+    let coordinate: CLLocationCoordinate2D
+    let distanceToPath: CLLocationDistance
+    let nextCoordinateIndex: Int
 }
 
 private struct IndoorLocationDetailView: View {

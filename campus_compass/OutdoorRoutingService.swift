@@ -105,7 +105,8 @@ struct CampusGraphRouter {
             steps.append(
                 NavigationStep(
                     instruction: "Head to \(destinationNodeName(pathNodes.first, fallback: "campus path"))",
-                    distance: originDistance
+                    distance: originDistance,
+                    targetCoordinate: pathNodes.first?.coordinate
                 )
             )
         }
@@ -115,7 +116,8 @@ struct CampusGraphRouter {
             steps.append(
                 NavigationStep(
                     instruction: "Continue to \(destinationNodeName(pair.1, fallback: destinationName))",
-                    distance: segmentDistance
+                    distance: segmentDistance,
+                    targetCoordinate: pair.1.coordinate
                 )
             )
         }
@@ -124,7 +126,8 @@ struct CampusGraphRouter {
             steps.append(
                 NavigationStep(
                     instruction: "Arrive at \(destinationName)",
-                    distance: destinationDistance
+                    distance: destinationDistance,
+                    targetCoordinate: destinationCoordinate
                 )
             )
         }
@@ -133,7 +136,8 @@ struct CampusGraphRouter {
             steps = [
                 NavigationStep(
                     instruction: "Proceed to \(destinationName)",
-                    distance: totalDistance
+                    distance: totalDistance,
+                    targetCoordinate: destinationCoordinate
                 )
             ]
         }
