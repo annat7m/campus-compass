@@ -182,32 +182,66 @@ enum IndoorRoutingLoader {
 
         for connection in connections {
             let edgeType: IndoorEdgeType = connection.type == "elevator" ? .elevator : .stairs
-            var endpointsByFloor: [String: [IndoorRoutingNode]] = [:]
 
-            for endpoint in connection.entrances + connection.exits {
-                let geoNodes = (graph.geometryToNodes[endpoint.geometryId] ?? []).compactMap { nodeId -> IndoorRoutingNode? in
-                    guard let node = graph.nodes[nodeId], node.floorId == endpoint.floorId else { return nil }
-                    return node
-                }
-                endpointsByFloor[endpoint.floorId, default: []].append(contentsOf: geoNodes)
+            // Gather entrance nodes and exit nodes separately per floor
+            var entrancesByFloor: [String: [IndoorRoutingNode]] = [:]
+            var exitsByFloor: [String: [IndoorRoutingNode]] = [:]
+
+            for endpoint in connection.entrances {
+                let geoNodes = nodesForGeometry(endpoint.geometryId, onFloor: endpoint.floorId, in: graph)
+                entrancesByFloor[endpoint.floorId, default: []].append(contentsOf: geoNodes)
+            }
+            for endpoint in connection.exits {
+                let geoNodes = nodesForGeometry(endpoint.geometryId, onFloor: endpoint.floorId, in: graph)
+                exitsByFloor[endpoint.floorId, default: []].append(contentsOf: geoNodes)
             }
 
-            let floors = Array(endpointsByFloor.keys)
+            // Combine all floors involved
+            var allByFloor: [String: [IndoorRoutingNode]] = [:]
+            for (floor, nodes) in entrancesByFloor { allByFloor[floor, default: []].append(contentsOf: nodes) }
+            for (floor, nodes) in exitsByFloor     { allByFloor[floor, default: []].append(contentsOf: nodes) }
+
+            let floors = Array(allByFloor.keys)
+
+            // Cross-floor edges (stairs / elevator)
             for i in 0..<floors.count {
                 for j in (i + 1)..<floors.count {
-                    let nodesA = endpointsByFloor[floors[i]] ?? []
-                    let nodesB = endpointsByFloor[floors[j]] ?? []
+                    let nodesA = allByFloor[floors[i]] ?? []
+                    let nodesB = allByFloor[floors[j]] ?? []
                     for nodeA in nodesA {
                         for nodeB in nodesB {
-                            let cost = connection.entryCost
                             graph.adjacency[nodeA.id, default: []].append(
-                                IndoorRoutingEdge(toNodeId: nodeB.id, cost: cost, type: edgeType))
+                                IndoorRoutingEdge(toNodeId: nodeB.id, cost: connection.entryCost, type: edgeType))
                             graph.adjacency[nodeB.id, default: []].append(
-                                IndoorRoutingEdge(toNodeId: nodeA.id, cost: cost, type: edgeType))
+                                IndoorRoutingEdge(toNodeId: nodeA.id, cost: connection.entryCost, type: edgeType))
                         }
                     }
                 }
             }
+
+            // Same-floor door edges — connect entrances to exits on the same floor
+            // (these were previously ignored by the cross-floor-only loop)
+            if connection.type == "door" {
+                for floor in floors {
+                    let entrances = entrancesByFloor[floor] ?? []
+                    let exits     = exitsByFloor[floor] ?? []
+                    for nodeA in entrances {
+                        for nodeB in exits where nodeA.id != nodeB.id {
+                            graph.adjacency[nodeA.id, default: []].append(
+                                IndoorRoutingEdge(toNodeId: nodeB.id, cost: connection.entryCost, type: .walk))
+                            graph.adjacency[nodeB.id, default: []].append(
+                                IndoorRoutingEdge(toNodeId: nodeA.id, cost: connection.entryCost, type: .walk))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static func nodesForGeometry(_ geometryId: String, onFloor floorId: String, in graph: IndoorRoutingGraph) -> [IndoorRoutingNode] {
+        (graph.geometryToNodes[geometryId] ?? []).compactMap { nodeId -> IndoorRoutingNode? in
+            guard let node = graph.nodes[nodeId], node.floorId == floorId else { return nil }
+            return node
         }
     }
 }

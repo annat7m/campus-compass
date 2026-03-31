@@ -285,11 +285,13 @@ private final class IndoorShapeOverlay: NSObject, MKOverlay {
 
 private final class RouteOverlay: NSObject, MKOverlay {
     let polyline: MKPolyline
+    let isIndoor: Bool
     var coordinate: CLLocationCoordinate2D { polyline.coordinate }
     var boundingMapRect: MKMapRect { polyline.boundingMapRect }
 
-    init(polyline: MKPolyline) {
+    init(polyline: MKPolyline, isIndoor: Bool = false) {
         self.polyline = polyline
+        self.isIndoor = isIndoor
         super.init()
     }
 }
@@ -307,6 +309,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     let onIndoorSelection: (IndoorLocation) -> Void
     let outdoorLocations: [CampusLocation]
     let routePolyline: MKPolyline?
+    let isIndoorRoute: Bool
     let onOutdoorSelection: (CampusLocation) -> Void
     let onRegionChange: (MKCoordinateRegion) -> Void
     let onEmptyMapTap: (() -> Void)?
@@ -347,7 +350,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         context.coordinator.syncOverlays(
             mapView: mapView,
             shapes: activeShapes,
-            routePolyline: routePolyline
+            routePolyline: routePolyline,
+            isIndoorRoute: isIndoorRoute
         )
         context.coordinator.syncAnnotations(
             mapView: mapView,
@@ -439,7 +443,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             self.parent = parent
         }
 
-        func syncOverlays(mapView: MKMapView, shapes: [IndoorShape], routePolyline: MKPolyline?) {
+        func syncOverlays(mapView: MKMapView, shapes: [IndoorShape], routePolyline: MKPolyline?, isIndoorRoute: Bool = false) {
             let sorted = shapes.sorted { drawOrder(for: $0.kind) < drawOrder(for: $1.kind) }
             var toAdd: [IndoorShapeOverlay] = []
             for item in sorted {
@@ -466,7 +470,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 overlayInfo[ObjectIdentifier(overlay)] = (overlay.kind, overlay.use)
             }
             if let routePolyline {
-                mapView.addOverlay(RouteOverlay(polyline: routePolyline))
+                mapView.addOverlay(RouteOverlay(polyline: routePolyline, isIndoor: isIndoorRoute))
             }
         }
 
@@ -612,8 +616,14 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
             if let routeOverlay = overlay as? RouteOverlay {
                 let renderer = MKPolylineRenderer(polyline: routeOverlay.polyline)
-                renderer.strokeColor = .systemBlue
-                renderer.lineWidth = 6
+                if routeOverlay.isIndoor {
+                    renderer.strokeColor = UIColor.systemTeal.withAlphaComponent(0.85)
+                    renderer.lineWidth = 4
+                    renderer.lineDashPattern = [8, 6]
+                } else {
+                    renderer.strokeColor = .systemBlue
+                    renderer.lineWidth = 6
+                }
                 return renderer
             }
             guard let shapeOverlay = overlay as? IndoorShapeOverlay else {
@@ -1335,6 +1345,7 @@ struct MapView: View {
             onIndoorSelection: handleIndoorSelection,
             outdoorLocations: displayedOutdoorLocations,
             routePolyline: isNavigatingIndoors ? currentIndoorRoutePolyline : activeRoute?.polyline,
+            isIndoorRoute: isNavigatingIndoors,
             onOutdoorSelection: handleOutdoorSelection,
             onRegionChange: handleRegionChange,
             onEmptyMapTap: { isShowingIndoorDetail = false }
