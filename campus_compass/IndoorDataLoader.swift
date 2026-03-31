@@ -54,6 +54,12 @@ enum RoomUse: String {
     case elevator
     case bathroom
     case classroom
+    case laboratory
+    case conferenceRoom
+    case office
+    case lounge
+    case gym
+    case foodAndDrink
 }
 
 struct IndoorShape: Identifiable {
@@ -69,6 +75,12 @@ enum IndoorLabelKind {
     case area
     case bathroom
     case classroom
+    case laboratory
+    case conferenceRoom
+    case office
+    case lounge
+    case gym
+    case foodAndDrink
     case stairs
     case elevator
     case annotation
@@ -749,6 +761,12 @@ enum IndoorDataLoader {
         switch use {
         case .bathroom: return .bathroom
         case .classroom: return .classroom
+        case .laboratory: return .laboratory
+        case .conferenceRoom: return .conferenceRoom
+        case .office: return .office
+        case .lounge: return .lounge
+        case .gym: return .gym
+        case .foodAndDrink: return .foodAndDrink
         case .stairs: return .stairs
         case .elevator: return .elevator
         case .none:
@@ -828,9 +846,26 @@ enum IndoorDataLoader {
         if combined.contains("restroom") || combined.contains("bathroom") || combined.contains("toilet") {
             return .bathroom
         }
-
-        if combined.contains("classroom") || combined.contains("conference") || combined.contains("lab") {
+        if combined.contains("laboratory") || combined.contains("lab") {
+            return .laboratory
+        }
+        if combined.contains("conference") || combined.contains("meeting room") {
+            return .conferenceRoom
+        }
+        if combined.contains("classroom") {
             return .classroom
+        }
+        if combined.contains("office") {
+            return .office
+        }
+        if combined.contains("lounge") {
+            return .lounge
+        }
+        if combined.contains("gym") || combined.contains("fitness") {
+            return .gym
+        }
+        if combined.contains("cafe") || combined.contains("food") || combined.contains("dining") || combined.contains("coffee") {
+            return .foodAndDrink
         }
 
         return nil
@@ -843,10 +878,16 @@ enum IndoorDataLoader {
 
     private static func roomUsePriority(_ use: RoomUse) -> Int {
         switch use {
-        case .elevator: return 4
-        case .stairs: return 3
-        case .bathroom: return 2
-        case .classroom: return 1
+        case .elevator: return 9
+        case .stairs: return 8
+        case .bathroom: return 7
+        case .laboratory: return 6
+        case .conferenceRoom: return 5
+        case .classroom: return 4
+        case .office: return 3
+        case .gym: return 2
+        case .foodAndDrink: return 2
+        case .lounge: return 1
         }
     }
 }

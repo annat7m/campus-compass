@@ -247,11 +247,12 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     let labelsByFloor: [String: [IndoorLabel]]
     let locationsByFloor: [String: [IndoorLocation]]
     var selectedFloorId: String
-    @Binding var selectedLocation: IndoorLocation?
+    let onIndoorSelection: (IndoorLocation) -> Void
     let outdoorLocations: [CampusLocation]
     let routePolyline: MKPolyline?
     let onOutdoorSelection: (CampusLocation) -> Void
     let onRegionChange: (MKCoordinateRegion) -> Void
+    let onEmptyMapTap: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -267,6 +268,10 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.outdoor)
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.label)
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.cluster)
+        let tap = UITapGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.handleMapTap(_:)))
+        tap.delegate = context.coordinator
+        mapView.addGestureRecognizer(tap)
         return mapView
     }
 
@@ -341,13 +346,14 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
     }
 
-    class Coordinator: NSObject, MKMapViewDelegate {
+    class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: MKMapViewRepresentable
         var lastAppliedRegion: MKCoordinateRegion?
         var overlayInfo: [ObjectIdentifier: (IndoorKind, RoomUse?)] = [:]
         var indoorLocationAnnotations: [String: IndoorLocationAnnotation] = [:]
         var labelAnnotations: [String: IndoorLabelAnnotation] = [:]
         var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
+        var justSelectedAnnotation = false
 
         init(_ parent: MKMapViewRepresentable) {
             self.parent = parent
@@ -530,9 +536,26 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             return MKOverlayRenderer(overlay: overlay)
         }
 
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+            return true
+        }
+
+        @objc func handleMapTap(_ gesture: UITapGestureRecognizer) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if self.justSelectedAnnotation {
+                    self.justSelectedAnnotation = false
+                } else {
+                    self.parent.onEmptyMapTap?()
+                }
+            }
+        }
+
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            justSelectedAnnotation = true
             if let ann = view.annotation as? IndoorLocationAnnotation {
-                parent.selectedLocation = ann.indoorLocation
+                parent.onIndoorSelection(ann.indoorLocation)
                 mapView.deselectAnnotation(view.annotation, animated: true)
                 return
             }
@@ -625,32 +648,34 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
 
         private func markerColor(for location: IndoorLocation) -> UIColor {
             switch location.use {
-            case .bathroom: return UIColor(red: 0.49, green: 0.69, blue: 0.92, alpha: 1)
-            case .classroom: return UIColor(red: 0.62, green: 0.55, blue: 0.86, alpha: 1)
-            case .stairs: return UIColor(red: 0.78, green: 0.62, blue: 0.35, alpha: 1)
-            case .elevator: return UIColor(red: 0.36, green: 0.69, blue: 0.46, alpha: 1)
-            case .none:
-                if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
-                    return UIColor(red: 0.86, green: 0.55, blue: 0.25, alpha: 1)
-                }
-                return UIColor(red: 0.35, green: 0.35, blue: 0.4, alpha: 1)
+            case .bathroom:      return UIColor(red: 0.49, green: 0.69, blue: 0.92, alpha: 1) // light blue
+            case .classroom:     return UIColor(red: 0.62, green: 0.55, blue: 0.86, alpha: 1) // purple
+            case .laboratory:    return UIColor(red: 0.25, green: 0.72, blue: 0.71, alpha: 1) // teal
+            case .conferenceRoom: return UIColor(red: 0.36, green: 0.51, blue: 0.82, alpha: 1) // indigo
+            case .office:        return UIColor(red: 0.86, green: 0.55, blue: 0.25, alpha: 1) // orange
+            case .lounge:        return UIColor(red: 0.88, green: 0.55, blue: 0.68, alpha: 1) // rose
+            case .gym:           return UIColor(red: 0.85, green: 0.33, blue: 0.33, alpha: 1) // red
+            case .foodAndDrink:  return UIColor(red: 0.93, green: 0.65, blue: 0.18, alpha: 1) // amber
+            case .stairs:        return UIColor(red: 0.78, green: 0.62, blue: 0.35, alpha: 1) // brown
+            case .elevator:      return UIColor(red: 0.36, green: 0.69, blue: 0.46, alpha: 1) // green
+            case .none:          return UIColor(red: 0.35, green: 0.35, blue: 0.4,  alpha: 1) // gray
             }
         }
 
         private func markerSymbol(for location: IndoorLocation) -> String? {
-            if location.use == .bathroom { return "figure.stand" }
-            if location.use == .stairs { return "stairs" }
-            if location.use == .elevator { return "arrow.up.and.down" }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
-                return "cup.and.saucer.fill"
+            switch location.use {
+            case .bathroom:       return "figure.stand"
+            case .stairs:         return "stairs"
+            case .elevator:       return "arrow.up.and.down"
+            case .classroom:      return "studentdesk"
+            case .laboratory:     return "testtube.2"
+            case .conferenceRoom: return "person.3.fill"
+            case .office:         return "briefcase.fill"
+            case .lounge:         return "chair.lounge.fill"
+            case .gym:            return "figure.run"
+            case .foodAndDrink:   return "fork.knife"
+            case .none:           return nil
             }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("lab") }) {
-                return "testtube.2"
-            }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("book") }) {
-                return "book.fill"
-            }
-            return nil
         }
     }
 }
@@ -679,6 +704,7 @@ struct MapView: View {
     @State private var selectedBuildingId: String = ""
     @State private var selectedFloorId: String = ""
     @State private var selectedIndoorLocation: IndoorLocation?
+    @State private var isShowingIndoorDetail = false
     @State private var detailDetent: PresentationDetent = .height(220)
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.521, longitude: -123.108),
@@ -1055,6 +1081,7 @@ struct MapView: View {
         
         selectedOutdoorLocation = nil
         selectedIndoorLocation = nil
+        isShowingIndoorDetail = false
         guard let userCoordinate = locationManager.location?.coordinate else {
             navigationError = "Current location unavailable."
             return
@@ -1112,7 +1139,7 @@ struct MapView: View {
     
     
     
-    var body: some View {
+    private var mapRepresentable: some View {
         MKMapViewRepresentable(
             region: $mapRegion,
             focusedRegion: focusedRegion,
@@ -1120,29 +1147,53 @@ struct MapView: View {
             labelsByFloor: indoorLabelsByFloor,
             locationsByFloor: indoorLocationsByFloor,
             selectedFloorId: selectedFloorId,
-            selectedLocation: $selectedIndoorLocation,
+            onIndoorSelection: handleIndoorSelection,
             outdoorLocations: displayedOutdoorLocations,
             routePolyline: activeRoute?.polyline,
-            onOutdoorSelection: { location in
-                selectedIndoorLocation = nil
-                selectedOutdoorLocation = location
-            },
-            onRegionChange: { newRegion in
-                let halfSpan = newRegion.span.longitudeDelta / 2
-                let left = CLLocationCoordinate2D(
-                    latitude: newRegion.center.latitude,
-                    longitude: newRegion.center.longitude - halfSpan
-                )
-                let right = CLLocationCoordinate2D(
-                    latitude: newRegion.center.latitude,
-                    longitude: newRegion.center.longitude + halfSpan
-                )
-                let widthMeters = MKMapPoint(left).distance(to: MKMapPoint(right))
-                if widthMeters >= 1200 {
-                    selectedIndoorLocation = nil
-                }
-            }
+            onOutdoorSelection: handleOutdoorSelection,
+            onRegionChange: handleRegionChange,
+            onEmptyMapTap: { isShowingIndoorDetail = false }
         )
+    }
+
+    private func handleIndoorSelection(_ location: IndoorLocation) {
+        detailDetent = .height(220)
+        selectedOutdoorLocation = nil
+        if isShowingIndoorDetail {
+            withAnimation(.spring(duration: 0.35)) {
+                selectedIndoorLocation = location
+            }
+        } else {
+            selectedIndoorLocation = location
+            isShowingIndoorDetail = true
+        }
+    }
+
+    private func handleOutdoorSelection(_ location: CampusLocation) {
+        selectedIndoorLocation = nil
+        isShowingIndoorDetail = false
+        selectedOutdoorLocation = location
+    }
+
+    private func handleRegionChange(_ newRegion: MKCoordinateRegion) {
+        let halfSpan = newRegion.span.longitudeDelta / 2
+        let left = CLLocationCoordinate2D(
+            latitude: newRegion.center.latitude,
+            longitude: newRegion.center.longitude - halfSpan
+        )
+        let right = CLLocationCoordinate2D(
+            latitude: newRegion.center.latitude,
+            longitude: newRegion.center.longitude + halfSpan
+        )
+        let widthMeters = MKMapPoint(left).distance(to: MKMapPoint(right))
+        if widthMeters >= 1200 {
+            selectedIndoorLocation = nil
+            isShowingIndoorDetail = false
+        }
+    }
+
+    var body: some View {
+        mapRepresentable
         .ignoresSafeArea()
         .task {
             guard indoorBuildings.isEmpty else { return }
@@ -1170,6 +1221,7 @@ struct MapView: View {
 
             let location = matchCampusLocation(for: building)
             selectedIndoorLocation = nil
+            isShowingIndoorDetail = false
             selectedOutdoorLocation = location
             focusedRegion = MKCoordinateRegion(
                 center: location.coordinate,
@@ -1192,11 +1244,16 @@ struct MapView: View {
         .onChange(of: selectedIndoorLocation?.id) { _, newValue in
             if newValue != nil {
                 selectedOutdoorLocation = nil
-                detailDetent = .height(220)
             }
         }
         .onChange(of: selectedOutdoorLocation?.id) { _, newValue in
             if newValue != nil {
+                selectedIndoorLocation = nil
+                isShowingIndoorDetail = false
+            }
+        }
+        .onChange(of: isShowingIndoorDetail) { _, isShowing in
+            if !isShowing {
                 selectedIndoorLocation = nil
             }
         }
@@ -1281,11 +1338,20 @@ struct MapView: View {
                 }
             }
         }
-        .sheet(item: $selectedIndoorLocation) { location in
-            IndoorLocationDetailView(location: location)
-                .presentationDetents([.height(220), .medium, .large], selection: $detailDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
+        .sheet(isPresented: $isShowingIndoorDetail) {
+            ZStack {
+                if let location = selectedIndoorLocation {
+                    IndoorLocationDetailView(location: location)
+                        .id(location.id)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .opacity
+                        ))
+                }
+            }
+            .presentationDetents([.height(220), .medium, .large], selection: $detailDetent)
+            .presentationDragIndicator(.visible)
+            .presentationBackgroundInteraction(.enabled)
         }
         .sheet(isPresented: $showDirectionsList) {
             NavigationStepsView(
@@ -1395,6 +1461,7 @@ struct MapView: View {
 
 private struct IndoorLocationDetailView: View {
     let location: IndoorLocation
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -1441,6 +1508,19 @@ private struct IndoorLocationDetailView: View {
             }
             .navigationTitle("Details")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .padding(8)
+                            .background(Color(.systemGray5), in: Circle())
+                    }
+                }
+            }
         }
     }
 
