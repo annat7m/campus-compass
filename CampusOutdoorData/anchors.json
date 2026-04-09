@@ -1,0 +1,27 @@
+[
+  {
+    "id": "anchor-tran-library",
+    "buildingName": "Tran Library",
+    "anchorNodeID": "tran-west"
+  },
+  {
+    "id": "anchor-strain",
+    "buildingName": "Strain Science Center",
+    "anchorNodeID": "strain-entry"
+  },
+  {
+    "id": "anchor-price",
+    "buildingName": "Price Hall",
+    "anchorNodeID": "price-main"
+  },
+  {
+    "id": "anchor-marsh",
+    "buildingName": "Marsh Hall",
+    "anchorNodeID": "marsh-west-entrance"
+  },
+  {
+    "id": "anchor-university-center",
+    "buildingName": "University Center",
+    "anchorNodeID": "uc-main-entrance"
+  }
+]

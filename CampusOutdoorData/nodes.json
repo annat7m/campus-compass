@@ -1,0 +1,128 @@
+[
+  {
+    "id": "tran-west",
+    "latitude": 45.521376,
+    "longitude": -123.108990,
+    "name": "Tran Library West Walk"
+  },
+  {
+    "id": "uc-main-entrance",
+    "latitude": 45.52195,
+    "longitude": -123.10936,
+    "name": "University Center Entrance"
+  },
+  {
+    "id": "strain-entry",
+    "latitude": 45.521697,
+    "longitude": -123.107264,
+    "name": "Strain Science Center Entry"
+  },
+  {
+    "id": "price-main",
+    "latitude": 45.521787,
+    "longitude": -123.107716,
+    "name": "Price Hall Main Entrance"
+  },
+  {
+    "id": "marsh-west-entrance",
+    "latitude": 45.52095,
+    "longitude": -123.10961,
+    "name": "Marsh Hall Entrance"
+  },
+  {
+    "id": "marsh-corner-walk",
+    "latitude": 45.521174,
+    "longitude": -123.10967,
+    "name": "path between Aucoin and Marsh"
+  },
+  {
+    "id": "university-ave-walk",
+    "latitude": 45.522848,
+    "longitude": -123.109484,
+    "name": "University Ave Start"
+  },
+  {
+    "id": "uc-fork-walk",
+    "latitude": 45.522289,
+    "longitude": -123.109479,
+    "name": "Fork between uc and walter"
+  },
+  {
+    "id": "tromble-main-walk-start",
+    "latitude": 45.521677,
+    "longitude": -123.109477,
+    "name": "Tromble Main Start"
+  },
+  {
+    "id": "tromble-aucoin-walk",
+    "latitude": 45.521315,
+    "longitude": -123.109482,
+    "name": "sidewalk in front of aucoin"
+  },
+  {
+    "id": "tromble-tran-walk",
+    "latitude": 45.521436,
+    "longitude": -123.109173,
+    "name": "sidewalk in front of tran"
+  },
+  {
+    "id": "tromble-uc-tran-walk",
+    "latitude": 45.521665,
+    "longitude": -123.108949,
+    "name": "tromble fork between uc and tran"
+  },
+  {
+    "id": "tromble-east-corner-walk",
+    "latitude": 45.521661,
+    "longitude": -123.107715,
+    "name": "tromble corner on price and strain"
+  },
+  {
+    "id": "marsh-east-walk",
+    "latitude": 45.52079,
+    "longitude": -123.10890,
+    "name": "walkway behind Marsh Hall"
+  },
+  {
+    "id": "warner-optom-walk-fork-01",
+    "latitude": 45.52014,
+    "longitude": -123.10964,
+    "name": "sidewalk in front of Warner Hall"
+  },
+  {
+    "id": "warner-optom-walk-fork-02",
+    "latitude": 45.52034,
+    "longitude": -123.10918,
+    "name": "sidewalk in front of Warner Hall and optometry building "
+  },
+  {
+    "id": "warner-optom-walk-fork-03",
+    "latitude": 45.52047,
+    "longitude": -123.10891,
+    "name": "sidewalk in front of Warner Hall and optometry building "
+  },
+  {
+    "id": "warner-optom-walk-fork-04",
+    "latitude": 45.52066,
+    "longitude": -123.10848,
+    "name": "sidewalk in front of optometry building and Taylor-Meade"
+  },
+  {
+    "id": "marsh-west-walk-fork-01",
+    "latitude": 45.520951,
+    "longitude": -123.110182,
+    "name": "sidewalk leading to Marsh Hall"
+  },
+  {
+    "id": "marsh-west-walk-fork-02",
+    "latitude": 45.520949,
+    "longitude": -123.109678,
+    "name": "sidewalk in front of Marsh Hall"
+  },
+  {
+    "id": "tran-south-walk-fork-01",
+    "latitude": 45.52117,
+    "longitude": -123.10891,
+    "name": "sidewalk next to Tran Library"
+  }
+]

@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreLocation
+import MapKit
 
 //  struct:      AccessibilityProfile
 //
@@ -61,6 +62,116 @@ struct POI: Identifiable, Codable, Hashable {
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
+}
+
+enum NavigationRouteSource {
+    case apple
+    case campusGraph
+
+    var displayName: String {
+        switch self {
+        case .apple:
+            return "Apple Walking"
+        case .campusGraph:
+            return "Campus Preferred"
+        }
+    }
+}
+
+struct NavigationStep: Identifiable {
+    let id = UUID()
+    let instruction: String
+    let distance: CLLocationDistance
+    let targetLatitude: Double?
+    let targetLongitude: Double?
+
+    init(
+        instruction: String,
+        distance: CLLocationDistance,
+        targetCoordinate: CLLocationCoordinate2D? = nil
+    ) {
+        self.instruction = instruction
+        self.distance = distance
+        self.targetLatitude = targetCoordinate?.latitude
+        self.targetLongitude = targetCoordinate?.longitude
+    }
+
+    var targetCoordinate: CLLocationCoordinate2D? {
+        guard let targetLatitude, let targetLongitude else { return nil }
+        return CLLocationCoordinate2D(latitude: targetLatitude, longitude: targetLongitude)
+    }
+}
+
+struct NavigationRoute {
+    let source: NavigationRouteSource
+    let coordinates: [CLLocationCoordinate2D]
+    let steps: [NavigationStep]
+    let distance: CLLocationDistance
+    let expectedTravelTime: TimeInterval
+    let destinationName: String
+
+    var polyline: MKPolyline? {
+        guard !coordinates.isEmpty else { return nil }
+        return MKPolyline(coordinates: coordinates, count: coordinates.count)
+    }
+
+    var distanceText: String {
+        if distance >= 1000 {
+            return String(format: "%.1f km", distance / 1000)
+        } else {
+            return "\(Int(distance)) m"
+        }
+    }
+
+    var etaText: String {
+        let minutes = max(1, Int(round(expectedTravelTime / 60)))
+        return "\(minutes) min"
+    }
+}
+
+struct OutdoorGraphNode: Identifiable, Codable, Hashable {
+    let id: String
+    let latitude: Double
+    let longitude: Double
+    let name: String?
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+struct OutdoorGraphShapePoint: Codable, Hashable {
+    let latitude: Double
+    let longitude: Double
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+struct OutdoorGraphEdge: Identifiable, Codable, Hashable {
+    let id: String
+    let fromNodeID: String
+    let toNodeID: String
+    let distance: CLLocationDistance
+    let penalty: Double
+    let bidirectional: Bool
+    let pathType: String?
+    let shape: [OutdoorGraphShapePoint]?
+}
+
+struct OutdoorBuildingAnchor: Identifiable, Codable, Hashable {
+    let id: String
+    let buildingName: String
+    let anchorNodeID: String
+}
+
+struct OutdoorGraphDataset: Codable, Hashable {
+    let nodes: [OutdoorGraphNode]
+    let edges: [OutdoorGraphEdge]
+    let anchors: [OutdoorBuildingAnchor]
+
+    static let empty = OutdoorGraphDataset(nodes: [], edges: [], anchors: [])
 }
 
 //  struct:      GraphNode
