@@ -9,12 +9,73 @@ import Foundation
 import CoreLocation
 import MapKit
 
+enum OutdoorInitialRouteMode {
+    case campusDirect
+    case appleToGraphEntry
+}
+
+struct OutdoorRouteBootstrap {
+    let mode: OutdoorInitialRouteMode
+    let entryNode: OutdoorGraphNode
+    let entryDistance: CLLocationDistance
+}
+
 struct OutdoorRouteCoordinator {
     private let graphRouter: CampusGraphRouter
     private let appleRouter = AppleDirectionsRouter()
 
     init(dataset: OutdoorGraphDataset) {
         self.graphRouter = CampusGraphRouter(dataset: dataset)
+    }
+
+    func bootstrap(
+        from origin: CLLocationCoordinate2D,
+        destinationName: String,
+        preferredAnchorNodeID: String? = nil,
+        appleTriggerDistance: CLLocationDistance = 40
+    ) -> OutdoorRouteBootstrap? {
+        guard let entry = graphRouter.entryNodeForRoute(
+            from: origin,
+            destinationName: destinationName,
+            preferredAnchorNodeID: preferredAnchorNodeID
+        ) else {
+            return nil
+        }
+
+        let mode: OutdoorInitialRouteMode =
+            entry.distanceFromOrigin > appleTriggerDistance ? .appleToGraphEntry : .campusDirect
+
+        return OutdoorRouteBootstrap(
+            mode: mode,
+            entryNode: entry.node,
+            entryDistance: entry.distanceFromOrigin
+        )
+    }
+
+    func campusRoute(
+        from origin: CLLocationCoordinate2D,
+        destinationName: String,
+        destinationCoordinate: CLLocationCoordinate2D,
+        preferredAnchorNodeID: String? = nil
+    ) -> NavigationRoute? {
+        graphRouter.route(
+            from: origin,
+            destinationName: destinationName,
+            destinationCoordinate: destinationCoordinate,
+            preferredAnchorNodeID: preferredAnchorNodeID
+        )
+    }
+
+    func appleRoute(
+        from origin: CLLocationCoordinate2D,
+        destinationName: String,
+        destinationCoordinate: CLLocationCoordinate2D
+    ) async throws -> NavigationRoute {
+        try await appleRouter.route(
+            from: origin,
+            destinationName: destinationName,
+            destinationCoordinate: destinationCoordinate
+        )
     }
 
     func route(
@@ -41,6 +102,11 @@ struct OutdoorRouteCoordinator {
 }
 
 struct CampusGraphRouter {
+    struct GraphEntryResult {
+        let node: OutdoorGraphNode
+        let distanceFromOrigin: CLLocationDistance
+    }
+
     private let dataset: OutdoorGraphDataset
     private let nodesByID: [String: OutdoorGraphNode]
     private let edgesByNodePair: [String: OutdoorGraphEdge]
@@ -88,7 +154,7 @@ struct CampusGraphRouter {
         let pathNodes = pathNodeIDs.compactMap { nodesByID[$0] }
         guard !pathNodes.isEmpty else { return nil }
 
-        var coordinates: [CLLocationCoordinate2D] = [origin]
+        var coordinates: [CLLocationCoordinate2D] = []
         appendCoordinates(
             edgeCoordinates(for: pathNodeIDs, origin: origin),
             into: &coordinates
@@ -150,6 +216,32 @@ struct CampusGraphRouter {
             expectedTravelTime: totalDistance / arrivalSpeedMetersPerSecond,
             destinationName: destinationName
         )
+    }
+
+    func entryNodeForRoute(
+        from origin: CLLocationCoordinate2D,
+        destinationName: String,
+        preferredAnchorNodeID: String? = nil
+    ) -> GraphEntryResult? {
+        guard
+            !dataset.nodes.isEmpty,
+            !dataset.edges.isEmpty,
+            let anchor = anchor(for: destinationName, preferredAnchorNodeID: preferredAnchorNodeID),
+            let destinationNode = nodesByID[anchor.anchorNodeID]
+        else {
+            return nil
+        }
+
+        var best: GraphEntryResult?
+        for candidate in dataset.nodes {
+            guard shortestPath(from: candidate.id, to: destinationNode.id) != nil else { continue }
+            let distanceToCandidate = distance(from: origin, to: candidate.coordinate)
+            if best == nil || distanceToCandidate < best!.distanceFromOrigin {
+                best = GraphEntryResult(node: candidate, distanceFromOrigin: distanceToCandidate)
+            }
+        }
+
+        return best
     }
 
     private func anchor(for buildingName: String, preferredAnchorNodeID: String?) -> OutdoorBuildingAnchor? {

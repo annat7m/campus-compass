@@ -106,5 +106,104 @@
     "penalty": 0.0,
     "bidirectional": true,
     "pathType": "entrance"
+  },
+  {
+    "id": "edge-uc-main-tromble-main",
+    "fromNodeID": "uc-main-entrance",
+    "toNodeID": "tromble-main-walk-start",
+    "distance": 32.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "entrance"
+  },
+  {
+    "id": "edge-uc-main-uc-fork",
+    "fromNodeID": "uc-main-entrance",
+    "toNodeID": "uc-fork-walk",
+    "distance": 39.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "entrance"
+  },
+  {
+    "id": "edge-marsh-west-fork1-fork2",
+    "fromNodeID": "marsh-west-walk-fork-01",
+    "toNodeID": "marsh-west-walk-fork-02",
+    "distance": 39.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-marsh-west-fork2-marsh-corner",
+    "fromNodeID": "marsh-west-walk-fork-02",
+    "toNodeID": "marsh-corner-walk",
+    "distance": 25.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-marsh-west-fork2-marsh-entrance",
+    "fromNodeID": "marsh-west-walk-fork-02",
+    "toNodeID": "marsh-west-entrance",
+    "distance": 5.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "entrance"
+  },
+  {
+    "id": "edge-warner-fork1-fork2",
+    "fromNodeID": "warner-optom-walk-fork-01",
+    "toNodeID": "warner-optom-walk-fork-02",
+    "distance": 42.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-warner-fork2-fork3",
+    "fromNodeID": "warner-optom-walk-fork-02",
+    "toNodeID": "warner-optom-walk-fork-03",
+    "distance": 26.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-warner-fork3-fork4",
+    "fromNodeID": "warner-optom-walk-fork-03",
+    "toNodeID": "warner-optom-walk-fork-04",
+    "distance": 40.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-warner-fork3-marsh-east",
+    "fromNodeID": "warner-optom-walk-fork-03",
+    "toNodeID": "marsh-east-walk",
+    "distance": 36.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-marsh-east-tran-south",
+    "fromNodeID": "marsh-east-walk",
+    "toNodeID": "tran-south-walk-fork-01",
+    "distance": 42.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
+  },
+  {
+    "id": "edge-tran-south-tran-west",
+    "fromNodeID": "tran-south-walk-fork-01",
+    "toNodeID": "tran-west",
+    "distance": 24.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "walkway"
   }
 ]

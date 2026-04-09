@@ -186,6 +186,13 @@ private struct ResolvedOutdoorDestination {
     }
 }
 
+private struct PendingGraphHandoff {
+    let entryCoordinate: CLLocationCoordinate2D
+    let destinationName: String
+    let destinationCoordinate: CLLocationCoordinate2D
+    let preferredAnchorNodeID: String?
+}
+
 // MARK: - MKMapView annotation and overlay types (for native clustering)
 
 private final class IndoorLocationAnnotation: NSObject, MKAnnotation {
@@ -738,6 +745,8 @@ struct MapView: View {
     @State private var navigationError: String?
     @State private var navigationDestination: CampusLocation?
     @State private var hasLoggedArrivalForActiveRoute = false
+    @State private var pendingGraphHandoff: PendingGraphHandoff?
+    @State private var isSwitchingToGraphRoute = false
     
     @StateObject private var locationManager = LocationManager()
     @State private var hasCenteredOnUser = false
@@ -758,6 +767,7 @@ struct MapView: View {
     @State private var focusedRegion: MKCoordinateRegion?
 
     private let graphStepArrivalThreshold: CLLocationDistance = 12
+    private let applePreRouteTriggerDistance: CLLocationDistance = 40
     
     private var routeSteps: [NavigationStep] {
         activeNavigationRoute?.steps ?? []
@@ -1163,6 +1173,8 @@ struct MapView: View {
         navigationError = nil
         navigationDestination = nil
         hasLoggedArrivalForActiveRoute = false
+        pendingGraphHandoff = nil
+        isSwitchingToGraphRoute = false
     }
     
     @MainActor
@@ -1180,29 +1192,79 @@ struct MapView: View {
         navigationError = nil
         currentStepIndex = 0
         hasLoggedArrivalForActiveRoute = false
+        pendingGraphHandoff = nil
+        isSwitchingToGraphRoute = false
 
         do {
-            let route = try await routeCoordinator.route(
+            let preferredAnchorNodeID = resolvedDestination.anchor?.anchorNodeID
+            let bootstrap = routeCoordinator.bootstrap(
                 from: userCoordinate,
                 destinationName: resolvedDestination.location.name,
-                destinationCoordinate: resolvedDestination.routeCoordinate,
-                preferredAnchorNodeID: resolvedDestination.anchor?.anchorNodeID
+                preferredAnchorNodeID: preferredAnchorNodeID,
+                appleTriggerDistance: applePreRouteTriggerDistance
             )
-            activeNavigationRoute = route
-            currentStepIndex = 0;
-            isNavigating = true
-            isCalculatingRoute = false
-            navigationDestination = resolvedDestination.location
 
-            if let polyline = route.polyline {
-                let routeRect = polyline.boundingMapRect
-                let padded = routeRect.insetBy(dx: -routeRect.size.width * 0.15, dy: -routeRect.size.height * 0.15)
-                focusedRegion = MKCoordinateRegion(padded)
+            let route: NavigationRoute
+            if let bootstrap {
+                switch bootstrap.mode {
+                case .campusDirect:
+                    if let graphRoute = routeCoordinator.campusRoute(
+                        from: userCoordinate,
+                        destinationName: resolvedDestination.location.name,
+                        destinationCoordinate: resolvedDestination.routeCoordinate,
+                        preferredAnchorNodeID: preferredAnchorNodeID
+                    ) {
+                        route = graphRoute
+                    } else {
+                        route = try await routeCoordinator.appleRoute(
+                            from: userCoordinate,
+                            destinationName: resolvedDestination.location.name,
+                            destinationCoordinate: resolvedDestination.routeCoordinate
+                        )
+                    }
+                case .appleToGraphEntry:
+                    route = try await routeCoordinator.appleRoute(
+                        from: userCoordinate,
+                        destinationName: bootstrap.entryNode.name ?? "Campus Path Entry",
+                        destinationCoordinate: bootstrap.entryNode.coordinate
+                    )
+                    pendingGraphHandoff = PendingGraphHandoff(
+                        entryCoordinate: bootstrap.entryNode.coordinate,
+                        destinationName: resolvedDestination.location.name,
+                        destinationCoordinate: resolvedDestination.routeCoordinate,
+                        preferredAnchorNodeID: preferredAnchorNodeID
+                    )
+                }
+            } else {
+                route = try await routeCoordinator.route(
+                    from: userCoordinate,
+                    destinationName: resolvedDestination.location.name,
+                    destinationCoordinate: resolvedDestination.routeCoordinate,
+                    preferredAnchorNodeID: preferredAnchorNodeID
+                )
             }
+
+            applyActiveNavigationRoute(route)
+            navigationDestination = resolvedDestination.location
             
         } catch {
             navigationError = error.localizedDescription
             isCalculatingRoute = false
+            pendingGraphHandoff = nil
+            isSwitchingToGraphRoute = false
+        }
+    }
+
+    private func applyActiveNavigationRoute(_ route: NavigationRoute) {
+        activeNavigationRoute = route
+        currentStepIndex = 0
+        isNavigating = true
+        isCalculatingRoute = false
+
+        if let polyline = route.polyline {
+            let routeRect = polyline.boundingMapRect
+            let padded = routeRect.insetBy(dx: -routeRect.size.width * 0.15, dy: -routeRect.size.height * 0.15)
+            focusedRegion = MKCoordinateRegion(padded)
         }
     }
     
@@ -1265,6 +1327,7 @@ struct MapView: View {
                 )
             }
 
+            maybeSwitchFromAppleToCampusGraph(using: location)
             updateNavigationProgress(using: location)
         }
         .onChange(of: appState.selectedBuildingID) { _, newID in
@@ -1485,6 +1548,41 @@ struct MapView: View {
         }
 
         recordArrivalIfNeeded(using: location)
+    }
+
+    private func maybeSwitchFromAppleToCampusGraph(using location: CLLocation) {
+        guard
+            isNavigating,
+            !isSwitchingToGraphRoute,
+            let handoff = pendingGraphHandoff,
+            activeNavigationRoute?.source == .apple
+        else {
+            return
+        }
+
+        let entryLocation = CLLocation(
+            latitude: handoff.entryCoordinate.latitude,
+            longitude: handoff.entryCoordinate.longitude
+        )
+        guard location.distance(from: entryLocation) <= graphStepArrivalThreshold else { return }
+
+        isSwitchingToGraphRoute = true
+        Task { @MainActor in
+            defer { isSwitchingToGraphRoute = false }
+            guard let currentCoordinate = locationManager.location?.coordinate else { return }
+
+            if let graphRoute = routeCoordinator.campusRoute(
+                from: currentCoordinate,
+                destinationName: handoff.destinationName,
+                destinationCoordinate: handoff.destinationCoordinate,
+                preferredAnchorNodeID: handoff.preferredAnchorNodeID
+            ) {
+                self.pendingGraphHandoff = nil
+                applyActiveNavigationRoute(graphRoute)
+            } else {
+                self.pendingGraphHandoff = nil
+            }
+        }
     }
 
     private func recordArrivalIfNeeded(using location: CLLocation) {

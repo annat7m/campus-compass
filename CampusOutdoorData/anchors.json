@@ -18,5 +18,10 @@
     "id": "anchor-marsh",
     "buildingName": "Marsh Hall",
     "anchorNodeID": "marsh-west-entrance"
+  },
+  {
+    "id": "anchor-university-center",
+    "buildingName": "University Center",
+    "anchorNodeID": "uc-main-entrance"
   }
 ]
