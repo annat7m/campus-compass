@@ -316,6 +316,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     let onRegionChange: (MKCoordinateRegion) -> Void
     let onEmptyMapTap: (() -> Void)?
     var selectedGeometryId: String?
+    var selectedIndoorLocationId: String?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -385,6 +386,31 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 mapView.addAnnotation(ann)
             }
         }
+
+        // Inflate/deflate the marker for the programmatically selected room
+        let newId = selectedIndoorLocationId
+        let oldId = context.coordinator.lastProgrammaticallySelectedId
+        if newId != oldId {
+            context.coordinator.lastProgrammaticallySelectedId = newId
+            // Restore clustering and deselect the previously selected annotation
+            if let oldId, let ann = context.coordinator.indoorLocationAnnotations[oldId] {
+                if let view = mapView.view(for: ann) as? MKMarkerAnnotationView {
+                    view.clusteringIdentifier = IndoorLocationAnnotation.clusteringIdentifier
+                }
+                mapView.deselectAnnotation(ann, animated: true)
+            }
+        }
+        if let newId, let ann = context.coordinator.indoorLocationAnnotations[newId] {
+            // Remove clustering so it isn't absorbed into a numbered cluster bubble
+            if let view = mapView.view(for: ann) as? MKMarkerAnnotationView {
+                view.clusteringIdentifier = nil
+            }
+            if !mapView.selectedAnnotations.contains(where: { $0 === ann }) {
+                context.coordinator.isProgrammaticallySelecting = true
+                mapView.selectAnnotation(ann, animated: true)
+                context.coordinator.isProgrammaticallySelecting = false
+            }
+        }
     }
 
     private func regionEquals(_ a: MKCoordinateRegion?, _ b: MKCoordinateRegion?) -> Bool {
@@ -444,6 +470,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
         var indoorUserAnnotation: IndoorUserAnnotation? = nil
         var justSelectedAnnotation = false
+        var isProgrammaticallySelecting = false
+        var lastProgrammaticallySelectedId: String? = nil
 
         init(_ parent: MKMapViewRepresentable) {
             self.parent = parent
@@ -599,7 +627,9 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                     view?.glyphTintColor = .white
                     view?.glyphText = nil
                 }
-                view?.clusteringIdentifier = IndoorLocationAnnotation.clusteringIdentifier
+                // Selected room must not cluster — clustering would absorb it before selectAnnotation can inflate it
+                let isSelected = indoor.indoorLocation.id == parent.selectedIndoorLocationId
+                view?.clusteringIdentifier = isSelected ? nil : IndoorLocationAnnotation.clusteringIdentifier
                 view?.canShowCallout = false
                 return view
             }
@@ -684,6 +714,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
             justSelectedAnnotation = true
             if let ann = view.annotation as? IndoorLocationAnnotation {
+                // When we programmatically select to inflate the marker, skip re-processing
+                if isProgrammaticallySelecting { return }
                 parent.onIndoorSelection(ann.indoorLocation)
                 mapView.deselectAnnotation(view.annotation, animated: true)
                 return
@@ -1379,7 +1411,8 @@ struct MapView: View {
             onOutdoorSelection: handleOutdoorSelection,
             onRegionChange: handleRegionChange,
             onEmptyMapTap: { isShowingIndoorDetail = false },
-            selectedGeometryId: selectedIndoorLocation?.geometryId
+            selectedGeometryId: selectedIndoorLocation?.geometryId,
+            selectedIndoorLocationId: selectedIndoorLocation?.id
         )
     }
 
