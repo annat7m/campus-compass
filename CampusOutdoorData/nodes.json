@@ -12,6 +12,12 @@
     "name": "University Center Entrance"
   },
   {
+    "id": "uc-side-entrance",
+    "latitude": 45.52177,
+    "longitude": -123.10895,
+    "name": "University Center Patio Entrance"
+  },
+  {
     "id": "strain-entry",
     "latitude": 45.521697,
     "longitude": -123.107264,
@@ -24,10 +30,28 @@
     "name": "Price Hall Main Entrance"
   },
   {
+    "id": "price-stair-entrance",
+    "latitude": 45.52179,
+    "longitude": -123.10823,
+    "name": "Price Hall side entrance"
+  },
+  {
     "id": "marsh-west-entrance",
     "latitude": 45.52095,
     "longitude": -123.10961,
     "name": "Marsh Hall Entrance"
+  },
+  {
+    "id": "marsh-north-entrance",
+    "latitude": 45.52114,
+    "longitude": -123.10947,
+    "name": "Marsh Hall north Entrance"
+  },
+  {
+    "id": "marsh-south-entrance",
+    "latitude": 45.52073,
+    "longitude": -123.10947,
+    "name": "Marsh Hall South Entrance"
   },
   {
     "id": "marsh-corner-walk",

@@ -164,6 +164,29 @@ struct OutdoorBuildingAnchor: Identifiable, Codable, Hashable {
     let id: String
     let buildingName: String
     let anchorNodeID: String
+    let isAccessible: Bool
+
+    init(id: String, buildingName: String, anchorNodeID: String, isAccessible: Bool = true) {
+        self.id = id
+        self.buildingName = buildingName
+        self.anchorNodeID = anchorNodeID
+        self.isAccessible = isAccessible
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case buildingName
+        case anchorNodeID
+        case isAccessible
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        buildingName = try container.decode(String.self, forKey: .buildingName)
+        anchorNodeID = try container.decode(String.self, forKey: .anchorNodeID)
+        isAccessible = try container.decodeIfPresent(Bool.self, forKey: .isAccessible) ?? true
+    }
 }
 
 struct OutdoorGraphDataset: Codable, Hashable {

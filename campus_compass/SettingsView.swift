@@ -116,9 +116,10 @@ import CloudKit
     
     
     
-    struct ToggleSectionView: View {
+struct ToggleSectionView: View {
         let title: String
         @Binding var items: [ToggleItem]
+        var hiddenTitles: Set<String> = []
         
         var body: some View {
             VStack(alignment: .leading, spacing: 16) {
@@ -127,11 +128,12 @@ import CloudKit
                     .padding(.horizontal)
                 
                 VStack(spacing: 10) {
-                    ForEach($items) { $item in
-                        ToggleRowView(item: $item)
+                    let visibleIndexes = items.indices.filter { !hiddenTitles.contains(items[$0].title) }
+                    ForEach(Array(visibleIndexes.enumerated()), id: \.element) { offset, index in
+                        ToggleRowView(item: $items[index])
                         
                         // Divider between items
-                        if item.id != items.last?.id {
+                        if offset < visibleIndexes.count - 1 {
                             Divider()
                                 .padding(.leading, 40)
                         }
@@ -166,18 +168,12 @@ struct SettingsView: View {
     // Keep your toggles, but we'll wire Accessibility Mode to profile.prefersAccessibility
     @State private var accessibilityToggles = [
         ToggleItem(title: "Accessibility Mode", subtitle: "Show only accessible routes and highlight accessibility features", systemImage: "figure.roll", isOn: false),
-        ToggleItem(title: "Avoid Stairs", subtitle: "Prefer routes with ramps and elevators", systemImage: "stairs", isOn: false),
         ToggleItem(title: "Voice Navigation", subtitle: "Enable spoken turn-by-turn directions", systemImage: "speaker.wave.2.fill", isOn: true),
         ToggleItem(title: "Large Text", subtitle: "Increase text size for better readability", systemImage: "textformat.size", isOn: false)
     ]
 
     @State private var notificationToggles = [
         ToggleItem(title: "Navigation Updates", subtitle: "Get notified of route changes or delays", systemImage: "bell.fill", isOn: true)
-    ]
-
-    @State private var navigationPreferences = [
-        ToggleItem(title: "Scenic Route", subtitle: "Take the prettiest path to your destination", systemImage: "landscape", isOn: false),
-        ToggleItem(title: "Quiet Path", subtitle: "A calm way to your destination", systemImage: "range.fill", isOn: false)
     ]
     @State private var showResetConfirm = false
     var body: some View {
@@ -193,9 +189,11 @@ struct SettingsView: View {
                 }
 
                 // MARK: - SETTINGS SECTIONS
-                ToggleSectionView(title: "Accessibility", items: $accessibilityToggles)
-                ToggleSectionView(title: "Notifications", items: $notificationToggles)
-                ToggleSectionView(title: "Preferences", items: $navigationPreferences)
+                ToggleSectionView(
+                    title: "Accessibility",
+                    items: $accessibilityToggles,
+                    hiddenTitles: ["Voice Navigation"]
+                )
                 
                 //MARK: - Debugging purposes only
                 #if DEBUG
@@ -208,30 +206,21 @@ struct SettingsView: View {
         .onAppear {
             // Initialize UI toggle state from the model
             accessibilityToggles[0].isOn = profile.accessibilityMode
-            accessibilityToggles[1].isOn = profile.avoidStairs
-            accessibilityToggles[2].isOn = profile.voiceNavigation
-            accessibilityToggles[3].isOn = profile.largeText
+            accessibilityToggles[1].isOn = profile.voiceNavigation
+            accessibilityToggles[2].isOn = profile.largeText
 
             notificationToggles[0].isOn = profile.navigationUpdates
-
-            navigationPreferences[0].isOn = profile.scenicRoute
-            navigationPreferences[1].isOn = profile.quietPath
         }
         .onChange(of: accessibilityToggles) { _, _ in
             // Persist Accessibility changes into SwiftData model
             profile.accessibilityMode = accessibilityToggles[0].isOn
-            profile.avoidStairs = accessibilityToggles[1].isOn
-            profile.voiceNavigation = accessibilityToggles[2].isOn
-            profile.largeText = accessibilityToggles[3].isOn
+            profile.avoidStairs = accessibilityToggles[0].isOn
+            profile.voiceNavigation = accessibilityToggles[1].isOn
+            profile.largeText = accessibilityToggles[2].isOn
             try? modelContext.save()
         }
         .onChange(of: notificationToggles) { _, _ in
             profile.navigationUpdates = notificationToggles[0].isOn
-            try? modelContext.save()
-        }
-        .onChange(of: navigationPreferences) { _, _ in
-            profile.scenicRoute = navigationPreferences[0].isOn
-            profile.quietPath = navigationPreferences[1].isOn
             try? modelContext.save()
         }
         .task {

@@ -63,6 +63,7 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(2)
             }
+            .dynamicTypeSize(profile.largeText ? .xLarge : .large)
             .tint(.red)
             .opacity(showWelcome ? 0 : 1)
             .scaleEffect(showWelcome ? 0.98 : 1)

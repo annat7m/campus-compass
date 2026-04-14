@@ -205,5 +205,23 @@
     "penalty": 0.0,
     "bidirectional": true,
     "pathType": "walkway"
+  },
+  {
+    "id": "edge-uc-side-uc-tran",
+    "fromNodeID": "uc-side-entrance",
+    "toNodeID": "tromble-uc-tran-walk",
+    "distance": 12.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "entrance"
+  },
+  {
+    "id": "edge-price-stair-east-corner",
+    "fromNodeID": "price-stair-entrance",
+    "toNodeID": "tromble-east-corner-walk",
+    "distance": 40.0,
+    "penalty": 0.0,
+    "bidirectional": true,
+    "pathType": "entrance"
   }
 ]

@@ -172,11 +172,11 @@ struct HomeHeaderView: View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(userName.map { "Hello, \($0)" } ?? "Hello")
-                    .font(.custom("Avenir Next", size: 28).weight(.bold))
+                    .font(.custom("Avenir Next", size: 28, relativeTo: .title).weight(.bold))
                     .foregroundColor(theme.ink)
 
                 Text("Welcome to Campus Compass")
-                    .font(.custom("Avenir Next", size: 14))
+                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
                     .foregroundColor(theme.mutedText)
             }
 
@@ -238,7 +238,7 @@ struct SearchBarView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(theme.mutedText)
                 TextField("Search buildings...", text: $searchText)
-                    .font(.custom("Avenir Next", size: 15))
+                    .font(.custom("Avenir Next", size: 15, relativeTo: .body))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -301,7 +301,7 @@ struct SectionChipsView: View {
                         onSelect(section)
                     }) {
                         Text(section.chipTitle)
-                            .font(.custom("Avenir Next", size: 14).weight(.semibold))
+                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
                             .foregroundColor(selected == section ? theme.chipSelectedText : theme.chipText)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
@@ -331,12 +331,12 @@ struct SectionHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.custom("Avenir Next", size: 20).weight(.bold))
+                .font(.custom("Avenir Next", size: 20, relativeTo: .title3).weight(.bold))
                 .foregroundColor(theme.ink)
 
             if let subtitle {
                 Text(subtitle)
-                    .font(.custom("Avenir Next", size: 13))
+                    .font(.custom("Avenir Next", size: 13, relativeTo: .subheadline))
                     .foregroundColor(theme.mutedText)
             }
         }
@@ -369,8 +369,10 @@ struct QuickActionCard: View {
                     )
 
                 Text(item.title)
-                    .font(.custom("Avenir Next", size: 15).weight(.semibold))
+                    .font(.custom("Avenir Next", size: 15, relativeTo: .body).weight(.semibold))
                     .foregroundColor(theme.ink)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
 
                 Spacer(minLength: 0)
             }
@@ -451,17 +453,18 @@ struct LocationCardView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(category.uppercased())
-                        .font(.custom("Avenir Next", size: 11).weight(.bold))
+                        .font(.custom("Avenir Next", size: 11, relativeTo: .caption).weight(.bold))
                         .foregroundColor(.white.opacity(0.85))
 
                     Text(item.title)
-                        .font(.custom("Avenir Next", size: 22).weight(.bold))
+                        .font(.custom("Avenir Next", size: 22, relativeTo: .title3).weight(.bold))
                         .foregroundColor(.white)
-                        .lineLimit(2)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.75)
 
                     HStack {
                         Text("See details")
-                            .font(.custom("Avenir Next", size: 13).weight(.semibold))
+                            .font(.custom("Avenir Next", size: 13, relativeTo: .subheadline).weight(.semibold))
                             .foregroundColor(.white)
 
                         Spacer()
@@ -542,12 +545,13 @@ struct EmptyStateCardView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.custom("Avenir Next", size: 16).weight(.semibold))
+                    .font(.custom("Avenir Next", size: 16, relativeTo: .body).weight(.semibold))
                     .foregroundColor(theme.ink)
 
                 Text(message)
-                    .font(.custom("Avenir Next", size: 13))
+                    .font(.custom("Avenir Next", size: 13, relativeTo: .subheadline))
                     .foregroundColor(theme.mutedText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)
@@ -569,21 +573,30 @@ struct HomeView: View {
     var profile: UserProfile
 
     @Environment(\.colorScheme) private var colorScheme
-    @State private var selectedSection: HomeSection = .popular
+    @EnvironmentObject private var appState: AppState
     @State private var animateIn = false
 
     private var theme: HomeTheme { HomeTheme(scheme: colorScheme) }
 
-    private let quickActions: [MenuItem] = [
-        MenuItem(id: "quick-map", title: "View Campus Map", systemImage: "map", action: { print("Campus Map tapped") }),
-        MenuItem(id: "quick-parking", title: "Find Parking", systemImage: "car.fill", action: { print("Find Parking tapped") }),
-        MenuItem(id: "quick-dining", title: "Find Dining Options", systemImage: "fork.knife", action: { print("Find Dining tapped") })
-    ]
-
-    private let popularDestinations: [MenuItem] = [
-        MenuItem(id: "popular-library", title: "Library", systemImage: "book.fill", action: { print("Library tapped") }),
-        MenuItem(id: "popular-gym", title: "Gym", systemImage: "figure.strengthtraining.traditional", action: { print("Gym tapped") })
-    ]
+    private var quickActions: [MenuItem] {
+        [
+            MenuItem(
+                id: "quick-map",
+                title: "View Campus Map",
+                systemImage: "map",
+                action: { appState.selectedTab = 1 }
+            ),
+            MenuItem(
+                id: "quick-parking",
+                title: "Find Parking",
+                systemImage: "car.fill",
+                action: {
+                    appState.selectedTab = 1
+                    appState.requestParkingHighlights()
+                }
+            )
+        ]
+    }
 
     private let recentLocations: [MenuItem] = [
         MenuItem(id: "recent-strain", title: "Strain Science Center", systemImage: "building", action: { print("Strain tapped") })
@@ -621,18 +634,6 @@ struct HomeView: View {
                             .offset(y: animateIn ? 0 : 16)
 
                         SectionCarouselView(
-                            title: HomeSection.popular.title,
-                            subtitle: "Student favorites across campus",
-                            items: popularDestinations,
-                            gradient: HomeSection.popular.gradient,
-                            cardSize: CGSize(width: 260, height: 190),
-                            theme: theme
-                        )
-                        .id(HomeSection.popular.anchor)
-                        .opacity(animateIn ? 1 : 0)
-                        .offset(y: animateIn ? 0 : 16)
-
-                        SectionCarouselView(
                             title: HomeSection.recent.title,
                             subtitle: "Pick up where you left off",
                             items: recentLocations,
@@ -654,7 +655,7 @@ struct HomeView: View {
                             if favoriteItems.isEmpty {
                                 EmptyStateCardView(
                                     title: "No buildings saved",
-                                    message: "Tap the heart on a location to add it here.",
+                                    message: "Tap the star on a location to add it here.",
                                     theme: theme
                                 )
                             } else {

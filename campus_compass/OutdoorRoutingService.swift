@@ -32,12 +32,14 @@ struct OutdoorRouteCoordinator {
         from origin: CLLocationCoordinate2D,
         destinationName: String,
         preferredAnchorNodeID: String? = nil,
+        requireAccessibleEntrances: Bool = false,
         appleTriggerDistance: CLLocationDistance = 40
     ) -> OutdoorRouteBootstrap? {
         guard let entry = graphRouter.entryNodeForRoute(
             from: origin,
             destinationName: destinationName,
-            preferredAnchorNodeID: preferredAnchorNodeID
+            preferredAnchorNodeID: preferredAnchorNodeID,
+            requireAccessibleEntrances: requireAccessibleEntrances
         ) else {
             return nil
         }
@@ -56,13 +58,15 @@ struct OutdoorRouteCoordinator {
         from origin: CLLocationCoordinate2D,
         destinationName: String,
         destinationCoordinate: CLLocationCoordinate2D,
-        preferredAnchorNodeID: String? = nil
+        preferredAnchorNodeID: String? = nil,
+        requireAccessibleEntrances: Bool = false
     ) -> NavigationRoute? {
         graphRouter.route(
             from: origin,
             destinationName: destinationName,
             destinationCoordinate: destinationCoordinate,
-            preferredAnchorNodeID: preferredAnchorNodeID
+            preferredAnchorNodeID: preferredAnchorNodeID,
+            requireAccessibleEntrances: requireAccessibleEntrances
         )
     }
 
@@ -82,13 +86,15 @@ struct OutdoorRouteCoordinator {
         from origin: CLLocationCoordinate2D,
         destinationName: String,
         destinationCoordinate: CLLocationCoordinate2D,
-        preferredAnchorNodeID: String? = nil
+        preferredAnchorNodeID: String? = nil,
+        requireAccessibleEntrances: Bool = false
     ) async throws -> NavigationRoute {
         if let graphRoute = graphRouter.route(
             from: origin,
             destinationName: destinationName,
             destinationCoordinate: destinationCoordinate,
-            preferredAnchorNodeID: preferredAnchorNodeID
+            preferredAnchorNodeID: preferredAnchorNodeID,
+            requireAccessibleEntrances: requireAccessibleEntrances
         ) {
             return graphRoute
         }
@@ -128,26 +134,48 @@ struct CampusGraphRouter {
         from origin: CLLocationCoordinate2D,
         destinationName: String,
         destinationCoordinate: CLLocationCoordinate2D,
-        preferredAnchorNodeID: String? = nil
+        preferredAnchorNodeID: String? = nil,
+        requireAccessibleEntrances: Bool = false
     ) -> NavigationRoute? {
         guard
             !dataset.nodes.isEmpty,
             !dataset.edges.isEmpty,
-            let anchor = anchor(for: destinationName, preferredAnchorNodeID: preferredAnchorNodeID),
-            let destinationNode = nodesByID[anchor.anchorNodeID],
             let originNode = nearestNode(to: origin)
         else {
             return nil
         }
 
         let originDistance = distance(from: origin, to: originNode.coordinate)
-        let destinationDistance = distance(from: destinationNode.coordinate, to: destinationCoordinate)
 
         guard originDistance <= nearestNodeThreshold else {
             return nil
         }
 
-        guard let pathNodeIDs = shortestPath(from: originNode.id, to: destinationNode.id) else {
+        let candidateAnchors = anchors(
+            for: destinationName,
+            preferredAnchorNodeID: preferredAnchorNodeID,
+            requireAccessibleEntrances: requireAccessibleEntrances
+        )
+
+        var bestPathNodeIDs: [String]?
+        var bestDestinationNode: OutdoorGraphNode?
+        var bestPathDistance: CLLocationDistance = .infinity
+
+        for anchor in candidateAnchors {
+            guard let destinationNode = nodesByID[anchor.anchorNodeID] else { continue }
+            guard let candidatePath = shortestPath(from: originNode.id, to: destinationNode.id) else { continue }
+            let candidateDistance = edgeDistance(for: candidatePath)
+            if candidateDistance < bestPathDistance {
+                bestPathDistance = candidateDistance
+                bestPathNodeIDs = candidatePath
+                bestDestinationNode = destinationNode
+            }
+        }
+
+        guard
+            let pathNodeIDs = bestPathNodeIDs,
+            let destinationNode = bestDestinationNode
+        else {
             return nil
         }
 
@@ -159,12 +187,12 @@ struct CampusGraphRouter {
             edgeCoordinates(for: pathNodeIDs, origin: origin),
             into: &coordinates
         )
-        if !sameCoordinate(destinationCoordinate, coordinates.last) {
-            coordinates.append(destinationCoordinate)
+        if !sameCoordinate(destinationNode.coordinate, coordinates.last) {
+            coordinates.append(destinationNode.coordinate)
         }
 
         let pathDistance = edgeDistance(for: pathNodeIDs)
-        let totalDistance = originDistance + pathDistance + destinationDistance
+        let totalDistance = originDistance + pathDistance
 
         var steps: [NavigationStep] = []
         if originDistance > 8 {
@@ -184,16 +212,6 @@ struct CampusGraphRouter {
                     instruction: "Continue to \(destinationNodeName(pair.1, fallback: destinationName))",
                     distance: segmentDistance,
                     targetCoordinate: pair.1.coordinate
-                )
-            )
-        }
-
-        if destinationDistance > 8 {
-            steps.append(
-                NavigationStep(
-                    instruction: "Arrive at \(destinationName)",
-                    distance: destinationDistance,
-                    targetCoordinate: destinationCoordinate
                 )
             )
         }
@@ -221,13 +239,18 @@ struct CampusGraphRouter {
     func entryNodeForRoute(
         from origin: CLLocationCoordinate2D,
         destinationName: String,
-        preferredAnchorNodeID: String? = nil
+        preferredAnchorNodeID: String? = nil,
+        requireAccessibleEntrances: Bool = false
     ) -> GraphEntryResult? {
         guard
             !dataset.nodes.isEmpty,
             !dataset.edges.isEmpty,
-            let anchor = anchor(for: destinationName, preferredAnchorNodeID: preferredAnchorNodeID),
-            let destinationNode = nodesByID[anchor.anchorNodeID]
+            let destinationNode = destinationNodeForBootstrap(
+                from: origin,
+                destinationName: destinationName,
+                preferredAnchorNodeID: preferredAnchorNodeID,
+                requireAccessibleEntrances: requireAccessibleEntrances
+            )
         else {
             return nil
         }
@@ -244,14 +267,70 @@ struct CampusGraphRouter {
         return best
     }
 
-    private func anchor(for buildingName: String, preferredAnchorNodeID: String?) -> OutdoorBuildingAnchor? {
-        if let preferredAnchorNodeID,
-           let preferred = dataset.anchors.first(where: { $0.anchorNodeID == preferredAnchorNodeID }) {
-            return preferred
+    private func anchors(
+        for buildingName: String,
+        preferredAnchorNodeID: String?,
+        requireAccessibleEntrances: Bool
+    ) -> [OutdoorBuildingAnchor] {
+        let normalized = normalize(buildingName)
+        let buildingAnchors = dataset.anchors.filter { normalize($0.buildingName) == normalized }
+        guard !buildingAnchors.isEmpty else { return [] }
+
+        let filteredAnchors: [OutdoorBuildingAnchor]
+        if requireAccessibleEntrances {
+            filteredAnchors = buildingAnchors.filter(isAnchorAccessible(_:))
+        } else {
+            filteredAnchors = buildingAnchors
         }
 
-        let normalized = normalize(buildingName)
-        return dataset.anchors.first { normalize($0.buildingName) == normalized }
+        if let preferredAnchorNodeID,
+           let preferred = filteredAnchors.first(where: { $0.anchorNodeID == preferredAnchorNodeID }) {
+            return [preferred] + filteredAnchors.filter { $0.anchorNodeID != preferredAnchorNodeID }
+        }
+
+        return filteredAnchors
+    }
+
+    private func destinationNodeForBootstrap(
+        from origin: CLLocationCoordinate2D,
+        destinationName: String,
+        preferredAnchorNodeID: String?,
+        requireAccessibleEntrances: Bool
+    ) -> OutdoorGraphNode? {
+        let anchorCandidates = anchors(
+            for: destinationName,
+            preferredAnchorNodeID: preferredAnchorNodeID,
+            requireAccessibleEntrances: requireAccessibleEntrances
+        )
+        guard !anchorCandidates.isEmpty else { return nil }
+
+        var bestNode: OutdoorGraphNode?
+        var bestDistance: CLLocationDistance = .infinity
+
+        for anchor in anchorCandidates {
+            guard let node = nodesByID[anchor.anchorNodeID] else { continue }
+            let candidateDistance = distance(from: origin, to: node.coordinate)
+            if candidateDistance < bestDistance {
+                bestDistance = candidateDistance
+                bestNode = node
+            }
+        }
+
+        return bestNode
+    }
+
+    private func isAnchorAccessible(_ anchor: OutdoorBuildingAnchor) -> Bool {
+        if !anchor.isAccessible {
+            return false
+        }
+
+        let nonAccessibleNodeIDs: Set<String> = [
+            "price-stair-entrance",
+            "uc-main-entrance",
+            "marsh-north-entrance",
+            "marsh-south-entrance"
+        ]
+        return !nonAccessibleNodeIDs.contains(anchor.anchorNodeID)
     }
 
     private func nearestNode(to coordinate: CLLocationCoordinate2D) -> OutdoorGraphNode? {

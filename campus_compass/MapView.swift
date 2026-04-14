@@ -12,14 +12,27 @@ import SwiftData
 
 struct LocationPreviewSheet: View {
     let location: CampusLocation
+    let isFavorite: Bool
+    let onFavoriteTapped: (CampusLocation) -> Void
     let onDirectionsTapped: (CampusLocation) -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text(location.name)
-                    .font(.title2)
-                    .bold()
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(location.name)
+                        .font(.title2)
+                        .bold()
+                    Spacer()
+                    Button {
+                        onFavoriteTapped(location)
+                    } label: {
+                        Image(systemName: isFavorite ? "star.fill" : "star")
+                            .font(.title3.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isFavorite ? "Remove Favorite" : "Save Favorite")
+                }
 
                 if let desc = location.shortDescription {
                     Text(desc)
@@ -93,6 +106,7 @@ private struct InfoRow: View {
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -172,6 +186,24 @@ struct CampusLocation: Identifiable, Hashable {
     }
 }
 
+private struct ParkingLot: Identifiable {
+    let id: String
+    let title: String
+    let coordinates: [CLLocationCoordinate2D]
+
+    var center: CLLocationCoordinate2D? {
+        guard !coordinates.isEmpty else { return nil }
+        let lat = coordinates.map(\.latitude).reduce(0, +) / Double(coordinates.count)
+        let lon = coordinates.map(\.longitude).reduce(0, +) / Double(coordinates.count)
+        return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+    }
+
+    var polygon: MKPolygon? {
+        guard coordinates.count >= 3 else { return nil }
+        return MKPolygon(coordinates: coordinates, count: coordinates.count)
+    }
+}
+
 private struct ResolvedOutdoorDestination {
     let location: CampusLocation
     let anchor: OutdoorBuildingAnchor?
@@ -226,6 +258,17 @@ private final class OutdoorPlaceAnnotation: NSObject, MKAnnotation {
     }
 }
 
+private final class ParkingLabelAnnotation: NSObject, MKAnnotation {
+    let parkingLot: ParkingLot
+    var coordinate: CLLocationCoordinate2D { parkingLot.center ?? CLLocationCoordinate2D(latitude: 0, longitude: 0) }
+    var title: String? { parkingLot.title }
+
+    init(_ parkingLot: ParkingLot) {
+        self.parkingLot = parkingLot
+        super.init()
+    }
+}
+
 private final class UserLocationAnnotation: NSObject, MKAnnotation {
     dynamic var coordinate: CLLocationCoordinate2D
 
@@ -241,6 +284,7 @@ private enum AnnotationReuseId {
     static let label = "indoorLabel"
     static let cluster = "indoorCluster"
     static let user = "userLocation"
+    static let parking = "parkingLabel"
 }
 
 /// Wraps a polygon or polyline with kind/use so the delegate can style it.
@@ -279,6 +323,20 @@ private final class RouteOverlay: NSObject, MKOverlay {
     }
 }
 
+private final class ParkingLotOverlay: NSObject, MKOverlay {
+    let lotID: String
+    let polygon: MKPolygon
+
+    var coordinate: CLLocationCoordinate2D { polygon.coordinate }
+    var boundingMapRect: MKMapRect { polygon.boundingMapRect }
+
+    init(lotID: String, polygon: MKPolygon) {
+        self.lotID = lotID
+        self.polygon = polygon
+        super.init()
+    }
+}
+
 // MARK: - MKMapView representable with clustering
 
 private struct MKMapViewRepresentable: UIViewRepresentable {
@@ -291,6 +349,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     @Binding var selectedLocation: IndoorLocation?
     let userCoordinate: CLLocationCoordinate2D?
     let outdoorLocations: [CampusLocation]
+    let parkingLots: [ParkingLot]
+    let isShowingParkingHighlights: Bool
     let routePolyline: MKPolyline?
     let onOutdoorSelection: (CampusLocation) -> Void
     let onRegionChange: (MKCoordinateRegion) -> Void
@@ -309,6 +369,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.outdoor)
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.label)
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.cluster)
+        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: AnnotationReuseId.parking)
         return mapView
     }
 
@@ -326,6 +387,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         context.coordinator.syncOverlays(
             mapView: mapView,
             shapes: activeShapes,
+            parkingLots: isShowingParkingHighlights ? parkingLots : [],
             routePolyline: routePolyline
         )
         context.coordinator.syncAnnotations(
@@ -333,7 +395,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             indoorLocations: showIndoor ? activeLocations : [],
             labels: showIndoor ? activeLabels : [],
             userCoordinate: userCoordinate,
-            outdoor: outdoorLocations
+            outdoor: outdoorLocations,
+            parkingLots: isShowingParkingHighlights ? parkingLots : []
         )
     }
 
@@ -391,13 +454,19 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         var indoorLocationAnnotations: [String: IndoorLocationAnnotation] = [:]
         var labelAnnotations: [String: IndoorLabelAnnotation] = [:]
         var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
+        var parkingLabelAnnotations: [String: ParkingLabelAnnotation] = [:]
         var userLocationAnnotation: UserLocationAnnotation?
 
         init(_ parent: MKMapViewRepresentable) {
             self.parent = parent
         }
 
-        func syncOverlays(mapView: MKMapView, shapes: [IndoorShape], routePolyline: MKPolyline?) {
+        func syncOverlays(
+            mapView: MKMapView,
+            shapes: [IndoorShape],
+            parkingLots: [ParkingLot],
+            routePolyline: MKPolyline?
+        ) {
             let sorted = shapes.sorted { drawOrder(for: $0.kind) < drawOrder(for: $1.kind) }
             var toAdd: [IndoorShapeOverlay] = []
             for item in sorted {
@@ -423,6 +492,10 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 mapView.addOverlay(overlay)
                 overlayInfo[ObjectIdentifier(overlay)] = (overlay.kind, overlay.use)
             }
+            for lot in parkingLots {
+                guard let polygon = lot.polygon else { continue }
+                mapView.addOverlay(ParkingLotOverlay(lotID: lot.id, polygon: polygon))
+            }
             if let routePolyline {
                 mapView.addOverlay(RouteOverlay(polyline: routePolyline))
             }
@@ -433,7 +506,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             indoorLocations: [IndoorLocation],
             labels: [IndoorLabel],
             userCoordinate: CLLocationCoordinate2D?,
-            outdoor: [CampusLocation]
+            outdoor: [CampusLocation],
+            parkingLots: [ParkingLot]
         ) {
             var toAdd: [MKAnnotation] = []
             var toRemove: [MKAnnotation] = []
@@ -485,6 +559,23 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             let removedOutdoor = Set(outdoorAnnotations.keys).subtracting(desiredOutdoorIds)
             for id in removedOutdoor {
                 if let annotation = outdoorAnnotations.removeValue(forKey: id) {
+                    toRemove.append(annotation)
+                }
+            }
+
+            var desiredParkingIds = Set<String>()
+            for parkingLot in parkingLots {
+                guard parkingLot.center != nil else { continue }
+                desiredParkingIds.insert(parkingLot.id)
+                if parkingLabelAnnotations[parkingLot.id] == nil {
+                    let annotation = ParkingLabelAnnotation(parkingLot)
+                    parkingLabelAnnotations[parkingLot.id] = annotation
+                    toAdd.append(annotation)
+                }
+            }
+            let removedParking = Set(parkingLabelAnnotations.keys).subtracting(desiredParkingIds)
+            for id in removedParking {
+                if let annotation = parkingLabelAnnotations.removeValue(forKey: id) {
                     toRemove.append(annotation)
                 }
             }
@@ -561,6 +652,16 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 view?.canShowCallout = false
                 return view
             }
+            if let parking = annotation as? ParkingLabelAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.parking, for: parking) as? MKMarkerAnnotationView
+                view?.markerTintColor = UIColor(red: 0.19, green: 0.31, blue: 0.71, alpha: 0.9)
+                view?.glyphText = parking.parkingLot.title
+                view?.glyphImage = nil
+                view?.glyphTintColor = .white
+                view?.clusteringIdentifier = nil
+                view?.canShowCallout = false
+                return view
+            }
             if annotation is UserLocationAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: AnnotationReuseId.user) ?? MKAnnotationView(annotation: annotation, reuseIdentifier: AnnotationReuseId.user)
                 view.annotation = annotation
@@ -584,6 +685,13 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 let renderer = MKPolylineRenderer(polyline: routeOverlay.polyline)
                 renderer.strokeColor = .systemBlue
                 renderer.lineWidth = 6
+                return renderer
+            }
+            if let parkingOverlay = overlay as? ParkingLotOverlay {
+                let renderer = MKPolygonRenderer(polygon: parkingOverlay.polygon)
+                renderer.fillColor = UIColor(red: 0.15, green: 0.31, blue: 0.82, alpha: 0.22)
+                renderer.strokeColor = UIColor(red: 0.14, green: 0.25, blue: 0.62, alpha: 0.9)
+                renderer.lineWidth = 2
                 return renderer
             }
             guard let shapeOverlay = overlay as? IndoorShapeOverlay else {
@@ -762,6 +870,7 @@ struct MapView: View {
     @State private var selectedFloorId: String = ""
     @State private var selectedIndoorLocation: IndoorLocation?
     @State private var detailDetent: PresentationDetent = .height(220)
+    @State private var isShowingParkingHighlights = false
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.521, longitude: -123.108),
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
@@ -798,6 +907,69 @@ struct MapView: View {
 
     private var routeCoordinator: OutdoorRouteCoordinator {
         OutdoorRouteCoordinator(dataset: outdoorGraphDataset)
+    }
+
+    private var shouldUseAccessibleEntrances: Bool {
+        profiles.first?.accessibilityMode ?? false
+    }
+
+    // Fill each `coordinates` array with the polygon points for that lot.
+    // Keep points ordered clockwise or counter-clockwise.
+    private let parkingLots: [ParkingLot] = [
+        ParkingLot(
+            id: "lot-d",
+            title: "Lot D",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52222, longitude: -123.10826), // top-left
+                CLLocationCoordinate2D(latitude: 45.52222, longitude: -123.10758), // top-right
+                CLLocationCoordinate2D(latitude: 45.52218, longitude: -123.10758), // bottom-right
+                CLLocationCoordinate2D(latitude: 45.52218, longitude: -123.10826), // bottom-left
+            ]),
+        ParkingLot(
+            id: "lot-c-1",
+            title: "Lot C",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52307, longitude: -123.10852), // top-left
+                CLLocationCoordinate2D(latitude: 45.52307, longitude: -123.10752), // top-right
+                CLLocationCoordinate2D(latitude: 45.52296, longitude: -123.10752), // bottom-right
+                CLLocationCoordinate2D(latitude: 45.52296, longitude: -123.10852), // bottom-left
+            ]),
+        ParkingLot(
+            id: "lot-c-2",
+            title: "Lot C",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52306, longitude: -123.10744), // top-left
+                CLLocationCoordinate2D(latitude: 45.52306, longitude: -123.10676), // top-right
+                CLLocationCoordinate2D(latitude: 45.52299, longitude: -123.10676), // bottom-right
+                CLLocationCoordinate2D(latitude: 45.52299, longitude: -123.10744), // bottom-left
+            ]),
+        //ParkingLot(id: "lot-b", title: "Lot B", coordinates: [])
+    ]
+
+    private var parkingFocusRegion: MKCoordinateRegion? {
+        let polygons = parkingLots.compactMap(\.polygon)
+        guard !polygons.isEmpty else { return nil }
+
+        var combinedRect = polygons
+            .map(\.boundingMapRect)
+            .reduce(.null) { $0.isNull ? $1 : $0.union($1) }
+
+        if let userCoordinate = locationManager.location?.coordinate {
+            let userPoint = MKMapPoint(userCoordinate)
+            let userRect = MKMapRect(
+                origin: MKMapPoint(x: userPoint.x - 60, y: userPoint.y - 60),
+                size: MKMapSize(width: 120, height: 120)
+            )
+            combinedRect = combinedRect.isNull ? userRect : combinedRect.union(userRect)
+        }
+
+        guard !combinedRect.isNull else { return nil }
+
+        let padded = combinedRect.insetBy(
+            dx: -(combinedRect.size.width * 0.20),
+            dy: -(combinedRect.size.height * 0.20)
+        )
+        return MKCoordinateRegion(padded)
     }
     
     let campusLocations: [CampusLocation] = [
@@ -1182,7 +1354,9 @@ struct MapView: View {
     @MainActor
     private func startDirections(to location: CampusLocation) async {
         let resolvedDestination = resolveOutdoorDestination(for: location)
+        let destinationCoordinate = resolvedDestination.location.coordinate
 
+        isShowingParkingHighlights = false
         selectedOutdoorLocation = nil
         selectedIndoorLocation = nil
         guard let userCoordinate = locationManager.location?.coordinate else {
@@ -1203,6 +1377,7 @@ struct MapView: View {
                 from: userCoordinate,
                 destinationName: resolvedDestination.location.name,
                 preferredAnchorNodeID: preferredAnchorNodeID,
+                requireAccessibleEntrances: shouldUseAccessibleEntrances,
                 appleTriggerDistance: applePreRouteTriggerDistance
             )
 
@@ -1213,15 +1388,16 @@ struct MapView: View {
                     if let graphRoute = routeCoordinator.campusRoute(
                         from: userCoordinate,
                         destinationName: resolvedDestination.location.name,
-                        destinationCoordinate: resolvedDestination.routeCoordinate,
-                        preferredAnchorNodeID: preferredAnchorNodeID
+                        destinationCoordinate: destinationCoordinate,
+                        preferredAnchorNodeID: preferredAnchorNodeID,
+                        requireAccessibleEntrances: shouldUseAccessibleEntrances
                     ) {
                         route = graphRoute
                     } else {
                         route = try await routeCoordinator.appleRoute(
                             from: userCoordinate,
                             destinationName: resolvedDestination.location.name,
-                            destinationCoordinate: resolvedDestination.routeCoordinate
+                            destinationCoordinate: destinationCoordinate
                         )
                     }
                 case .appleToGraphEntry:
@@ -1233,7 +1409,7 @@ struct MapView: View {
                     pendingGraphHandoff = PendingGraphHandoff(
                         entryCoordinate: bootstrap.entryNode.coordinate,
                         destinationName: resolvedDestination.location.name,
-                        destinationCoordinate: resolvedDestination.routeCoordinate,
+                        destinationCoordinate: destinationCoordinate,
                         preferredAnchorNodeID: preferredAnchorNodeID
                     )
                 }
@@ -1241,8 +1417,9 @@ struct MapView: View {
                 route = try await routeCoordinator.route(
                     from: userCoordinate,
                     destinationName: resolvedDestination.location.name,
-                    destinationCoordinate: resolvedDestination.routeCoordinate,
-                    preferredAnchorNodeID: preferredAnchorNodeID
+                    destinationCoordinate: destinationCoordinate,
+                    preferredAnchorNodeID: preferredAnchorNodeID,
+                    requireAccessibleEntrances: shouldUseAccessibleEntrances
                 )
             }
 
@@ -1283,8 +1460,11 @@ struct MapView: View {
             selectedLocation: $selectedIndoorLocation,
             userCoordinate: locationManager.location?.coordinate,
             outdoorLocations: displayedOutdoorLocations,
+            parkingLots: parkingLots,
+            isShowingParkingHighlights: isShowingParkingHighlights,
             routePolyline: displayedRoutePolyline,
             onOutdoorSelection: { location in
+                isShowingParkingHighlights = false
                 selectedIndoorLocation = nil
                 selectedOutdoorLocation = location
             },
@@ -1337,12 +1517,21 @@ struct MapView: View {
             guard let building = buildingStore.buildings.first(where: { $0.id == newID }) else { return }
 
             let resolvedDestination = resolveOutdoorDestination(for: building)
+            isShowingParkingHighlights = false
             selectedIndoorLocation = nil
             selectedOutdoorLocation = resolvedDestination.location
             focusedRegion = MKCoordinateRegion(
                 center: resolvedDestination.focusCoordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
             )
+        }
+        .onChange(of: appState.parkingHighlightRequestID) { _, _ in
+            isShowingParkingHighlights = true
+            selectedIndoorLocation = nil
+            selectedOutdoorLocation = nil
+            if let parkingFocusRegion {
+                focusedRegion = parkingFocusRegion
+            }
         }
         .onChange(of: selectedBuildingId) { _, newValue in
             guard let building = indoorBuildings.first(where: { $0.id == newValue }) else { return }
@@ -1359,12 +1548,14 @@ struct MapView: View {
         }
         .onChange(of: selectedIndoorLocation?.id) { _, newValue in
             if newValue != nil {
+                isShowingParkingHighlights = false
                 selectedOutdoorLocation = nil
                 detailDetent = .height(220)
             }
         }
         .onChange(of: selectedOutdoorLocation?.id) { _, newValue in
             if newValue != nil {
+                isShowingParkingHighlights = false
                 selectedIndoorLocation = nil
             }
         }
@@ -1386,7 +1577,7 @@ struct MapView: View {
             }
         }
         .overlay(alignment: .top) {
-            if isNavigating, let currentStep, let activeNavigationRoute {
+            if isNavigating, let activeNavigationRoute {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text("Next Direction")
@@ -1398,13 +1589,18 @@ struct MapView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    Text(currentStep.instruction)
-                        .font(.headline)
+                    if hasLoggedArrivalForActiveRoute {
+                        Text("You have arrived")
+                            .font(.headline)
+                    } else if let currentStep {
+                        Text(currentStep.instruction)
+                            .font(.headline)
 
-                    if routeSteps.indices.contains(currentStepIndex + 1) {
-                        Text("Then: \(routeSteps[currentStepIndex + 1].instruction)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        if routeSteps.indices.contains(currentStepIndex + 1) {
+                            Text("Then: \(routeSteps[currentStepIndex + 1].instruction)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .padding()
@@ -1438,6 +1634,25 @@ struct MapView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
+            if isShowingParkingHighlights {
+                Button {
+                    isShowingParkingHighlights = false
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "eye.slash.fill")
+                        Text("Hide Parking")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 20)
+                .padding(.bottom, 90)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
             if isNavigating {
                 Button {
                     showDirectionsList = true
@@ -1452,11 +1667,18 @@ struct MapView: View {
             }
         }
         .sheet(item: $selectedOutdoorLocation) { location in
-            LocationPreviewSheet(location: location) { tappedLocation in
-                Task {
-                    await startDirections(to: tappedLocation)
+            LocationPreviewSheet(
+                location: location,
+                isFavorite: isFavorite(location),
+                onFavoriteTapped: { tappedLocation in
+                    toggleFavorite(for: tappedLocation)
+                },
+                onDirectionsTapped: { tappedLocation in
+                    Task {
+                        await startDirections(to: tappedLocation)
+                    }
                 }
-            }
+            )
         }
         .sheet(item: $selectedIndoorLocation) { location in
             IndoorLocationDetailView(location: location)
@@ -1577,7 +1799,8 @@ struct MapView: View {
                 from: currentCoordinate,
                 destinationName: handoff.destinationName,
                 destinationCoordinate: handoff.destinationCoordinate,
-                preferredAnchorNodeID: handoff.preferredAnchorNodeID
+                preferredAnchorNodeID: handoff.preferredAnchorNodeID,
+                requireAccessibleEntrances: shouldUseAccessibleEntrances
             ) {
                 self.pendingGraphHandoff = nil
                 applyActiveNavigationRoute(graphRoute)
@@ -1596,9 +1819,18 @@ struct MapView: View {
             return
         }
 
+        let arrivalCoordinate: CLLocationCoordinate2D
+        if let route = activeNavigationRoute,
+           route.source == .campusGraph,
+           let finalStepTarget = route.steps.last?.targetCoordinate {
+            arrivalCoordinate = finalStepTarget
+        } else {
+            arrivalCoordinate = destination.coordinate
+        }
+
         let targetLocation = CLLocation(
-            latitude: destination.coordinate.latitude,
-            longitude: destination.coordinate.longitude
+            latitude: arrivalCoordinate.latitude,
+            longitude: arrivalCoordinate.longitude
         )
         guard location.distance(from: targetLocation) <= graphStepArrivalThreshold else {
             return
@@ -1626,6 +1858,33 @@ struct MapView: View {
         }
 
         hasLoggedArrivalForActiveRoute = true
+    }
+
+    private func isFavorite(_ location: CampusLocation) -> Bool {
+        guard let profile = profiles.first else { return false }
+        let normalizedDestination = normalizedOutdoorKey(name: location.name)
+        return profile.favorites.contains {
+            normalizedOutdoorKey(name: $0) == normalizedDestination
+        }
+    }
+
+    private func toggleFavorite(for location: CampusLocation) {
+        guard let profile = profiles.first else { return }
+
+        let normalizedDestination = normalizedOutdoorKey(name: location.name)
+        if let existingIndex = profile.favorites.firstIndex(where: {
+            normalizedOutdoorKey(name: $0) == normalizedDestination
+        }) {
+            profile.favorites.remove(at: existingIndex)
+        } else {
+            profile.favorites.insert(location.name, at: 0)
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            print("Failed to save favorites: \(error)")
+        }
     }
 
     private func remainingRoutePolyline(

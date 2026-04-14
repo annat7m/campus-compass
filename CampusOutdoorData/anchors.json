@@ -2,26 +2,55 @@
   {
     "id": "anchor-tran-library",
     "buildingName": "Tran Library",
-    "anchorNodeID": "tran-west"
+    "anchorNodeID": "tran-west",
+    "isAccessible": true
   },
   {
     "id": "anchor-strain",
     "buildingName": "Strain Science Center",
-    "anchorNodeID": "strain-entry"
+    "anchorNodeID": "strain-entry",
+    "isAccessible": true
   },
   {
     "id": "anchor-price",
     "buildingName": "Price Hall",
-    "anchorNodeID": "price-main"
+    "anchorNodeID": "price-main",
+    "isAccessible": true
+  },
+  {
+    "id": "anchor-price-stair",
+    "buildingName": "Price Hall",
+    "anchorNodeID": "price-stair-entrance",
+    "isAccessible": false
   },
   {
     "id": "anchor-marsh",
     "buildingName": "Marsh Hall",
-    "anchorNodeID": "marsh-west-entrance"
+    "anchorNodeID": "marsh-west-entrance",
+    "isAccessible": true
+  },
+  {
+    "id": "anchor-marsh-north",
+    "buildingName": "Marsh Hall",
+    "anchorNodeID": "marsh-north-entrance",
+    "isAccessible": false
+  },
+  {
+    "id": "anchor-marsh-south",
+    "buildingName": "Marsh Hall",
+    "anchorNodeID": "marsh-south-entrance",
+    "isAccessible": false
   },
   {
     "id": "anchor-university-center",
     "buildingName": "University Center",
-    "anchorNodeID": "uc-main-entrance"
+    "anchorNodeID": "uc-main-entrance",
+    "isAccessible": false
+  },
+  {
+    "id": "anchor-university-center-side",
+    "buildingName": "University Center",
+    "anchorNodeID": "uc-side-entrance",
+    "isAccessible": true
   }
 ]
