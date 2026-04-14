@@ -14,4 +14,5 @@ final class AppState: ObservableObject {
     @Published var selectedTab: Int = 0          // 0 Home, 1 Map, 2 Settings (matches your tags)
     
     @Published var selectedBuildingID: CKRecord.ID? = nil
+    @Published var selectedRoom: RoomSearchResult? = nil
 }

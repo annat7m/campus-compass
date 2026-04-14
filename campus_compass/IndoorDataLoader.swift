@@ -104,6 +104,7 @@ struct IndoorLocation: Identifiable {
     let use: RoomUse?
     let labelKind: IndoorLabelKind
     let isArea: Bool
+    let geometryId: String   // anchor geometry id, used for map polygon highlighting
 }
 
 struct IndoorOpeningHours: Identifiable {
@@ -551,7 +552,8 @@ enum IndoorDataLoader {
                     coordinate: coordinate,
                     use: use,
                     labelKind: labelKind,
-                    isArea: isArea
+                    isArea: isArea,
+                    geometryId: anchor.geometryId
                 )
                 locationsByFloor[anchor.floorId, default: []].append(indoorLocation)
             }
@@ -603,7 +605,8 @@ enum IndoorDataLoader {
                     coordinate: coordinate,
                     use: use,
                     labelKind: use == .stairs ? .stairs : .elevator,
-                    isArea: false
+                    isArea: false,
+                    geometryId: endpoint.geometryId
                 )
                 locationsByFloor[floorId, default: []].append(location)
             }

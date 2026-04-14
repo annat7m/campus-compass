@@ -263,6 +263,7 @@ private final class IndoorShapeOverlay: NSObject, MKOverlay {
     let shape: MKShape
     let kind: IndoorKind
     let use: RoomUse?
+    let geometryId: String
     var coordinate: CLLocationCoordinate2D { shape.coordinate }
     var boundingMapRect: MKMapRect {
         if let polygon = shape as? MKPolygon { return polygon.boundingMapRect }
@@ -275,10 +276,11 @@ private final class IndoorShapeOverlay: NSObject, MKOverlay {
         }
         return .null
     }
-    init(shape: MKShape, kind: IndoorKind, use: RoomUse?) {
+    init(shape: MKShape, kind: IndoorKind, use: RoomUse?, geometryId: String) {
         self.shape = shape
         self.kind = kind
         self.use = use
+        self.geometryId = geometryId
         super.init()
     }
 }
@@ -313,6 +315,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     let onOutdoorSelection: (CampusLocation) -> Void
     let onRegionChange: (MKCoordinateRegion) -> Void
     let onEmptyMapTap: (() -> Void)?
+    var selectedGeometryId: String?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -338,6 +341,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
 
     func updateUIView(_ mapView: MKMapView, context: Context) {
         context.coordinator.parent = self
+        // Keep coordinator in sync so rendererFor applies the correct highlight color
+        context.coordinator.selectedGeometryId = selectedGeometryId
         if let focused = focusedRegion, !regionEquals(focused, context.coordinator.lastAppliedRegion) {
             context.coordinator.lastAppliedRegion = focused
             mapView.setRegion(focused, animated: true)
@@ -432,7 +437,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var parent: MKMapViewRepresentable
         var lastAppliedRegion: MKCoordinateRegion?
-        var overlayInfo: [ObjectIdentifier: (IndoorKind, RoomUse?)] = [:]
+        var overlayInfo: [ObjectIdentifier: (IndoorKind, RoomUse?, String)] = [:]
+        var selectedGeometryId: String? = nil
         var indoorLocationAnnotations: [String: IndoorLocationAnnotation] = [:]
         var labelAnnotations: [String: IndoorLabelAnnotation] = [:]
         var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
@@ -448,18 +454,18 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             var toAdd: [IndoorShapeOverlay] = []
             for item in sorted {
                 if let polygon = item.shape as? MKPolygon {
-                    toAdd.append(IndoorShapeOverlay(shape: polygon, kind: item.kind, use: item.use))
+                    toAdd.append(IndoorShapeOverlay(shape: polygon, kind: item.kind, use: item.use, geometryId: item.geometryId))
                 } else if let polyline = item.shape as? MKPolyline, shouldRenderLine(for: item.kind) {
-                    toAdd.append(IndoorShapeOverlay(shape: polyline, kind: item.kind, use: item.use))
+                    toAdd.append(IndoorShapeOverlay(shape: polyline, kind: item.kind, use: item.use, geometryId: item.geometryId))
                 } else if item.shape is MKPointAnnotation, shouldRenderPoint(for: item.kind, use: item.use) {
                     continue
                 } else if let multi = item.shape as? MKMultiPolygon {
                     for polygon in multi.polygons {
-                        toAdd.append(IndoorShapeOverlay(shape: polygon, kind: item.kind, use: item.use))
+                        toAdd.append(IndoorShapeOverlay(shape: polygon, kind: item.kind, use: item.use, geometryId: item.geometryId))
                     }
                 } else if let multi = item.shape as? MKMultiPolyline, shouldRenderLine(for: item.kind) {
                     for polyline in multi.polylines {
-                        toAdd.append(IndoorShapeOverlay(shape: polyline, kind: item.kind, use: item.use))
+                        toAdd.append(IndoorShapeOverlay(shape: polyline, kind: item.kind, use: item.use, geometryId: item.geometryId))
                     }
                 }
             }
@@ -467,10 +473,22 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             overlayInfo.removeAll()
             for overlay in toAdd {
                 mapView.addOverlay(overlay)
-                overlayInfo[ObjectIdentifier(overlay)] = (overlay.kind, overlay.use)
+                overlayInfo[ObjectIdentifier(overlay)] = (overlay.kind, overlay.use, overlay.geometryId)
             }
             if let routePolyline {
                 mapView.addOverlay(RouteOverlay(polyline: routePolyline, isIndoor: isIndoorRoute))
+            }
+        }
+
+        /// Re-adds the 1-2 overlays whose geometryId changed so their renderer is recreated with the new color.
+        func updateHighlight(mapView: MKMapView, old oldGid: String?, new newGid: String?) {
+            selectedGeometryId = newGid
+            for overlay in mapView.overlays {
+                guard let shapeOverlay = overlay as? IndoorShapeOverlay,
+                      let (_, _, gid) = overlayInfo[ObjectIdentifier(shapeOverlay)],
+                      gid == oldGid || gid == newGid else { continue }
+                mapView.removeOverlay(overlay)
+                mapView.addOverlay(overlay)
             }
         }
 
@@ -631,16 +649,16 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             }
             if let polygon = shapeOverlay.shape as? MKPolygon {
                 let renderer = MKPolygonRenderer(polygon: polygon)
-                let (kind, use) = overlayInfo[ObjectIdentifier(shapeOverlay)] ?? (.unknown, nil)
-                renderer.fillColor = fillColor(for: kind, use: use)
-                renderer.strokeColor = strokeColor(for: kind, use: use)
+                let (kind, use, gid) = overlayInfo[ObjectIdentifier(shapeOverlay)] ?? (.unknown, nil, "")
+                renderer.fillColor = fillColor(for: kind, use: use, geometryId: gid)
+                renderer.strokeColor = strokeColor(for: kind, use: use, geometryId: gid)
                 renderer.lineWidth = lineWidth(for: kind, use: use)
                 return renderer
             }
             if let polyline = shapeOverlay.shape as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
-                let (kind, use) = overlayInfo[ObjectIdentifier(shapeOverlay)] ?? (.unknown, nil)
-                renderer.strokeColor = strokeColor(for: kind, use: use)
+                let (kind, use, gid) = overlayInfo[ObjectIdentifier(shapeOverlay)] ?? (.unknown, nil, "")
+                renderer.strokeColor = strokeColor(for: kind, use: use, geometryId: gid)
                 renderer.lineWidth = lineWidth(for: kind, use: use)
                 return renderer
             }
@@ -711,7 +729,10 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             }
         }
 
-        private func strokeColor(for kind: IndoorKind, use: RoomUse?) -> UIColor {
+        private func strokeColor(for kind: IndoorKind, use: RoomUse?, geometryId: String = "") -> UIColor {
+            if !geometryId.isEmpty && geometryId == selectedGeometryId {
+                return .systemBlue
+            }
             switch kind {
             case .outline: return .systemBlue
             case .wall: return .label
@@ -722,7 +743,10 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             }
         }
 
-        private func fillColor(for kind: IndoorKind, use: RoomUse?) -> UIColor {
+        private func fillColor(for kind: IndoorKind, use: RoomUse?, geometryId: String = "") -> UIColor {
+            if !geometryId.isEmpty && geometryId == selectedGeometryId {
+                return UIColor.systemBlue.withAlphaComponent(0.42)
+            }
             switch kind {
             case .room, .hallway, .area, .object:
                 return UIColor.gray.withAlphaComponent(0.12)
@@ -794,6 +818,10 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
 struct MapView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var buildingStore: BuildingStore
+    @EnvironmentObject private var roomSearchStore: RoomSearchStore
+
+    @State private var mapSearchText = ""
+    @FocusState private var isMapSearchFocused: Bool
     
     
     @State private var showDirectionsList = false
@@ -833,7 +861,9 @@ struct MapView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
     @State private var focusedRegion: MKCoordinateRegion?
-    
+    @State private var suppressBuildingFloorReset = false
+    @State private var pendingRoomSelection: RoomSearchResult? = nil
+
     private var currentStep: MKRoute.Step? {
         guard routeSteps.indices.contains(currentStepIndex) else { return nil }
         return routeSteps[currentStepIndex]
@@ -1348,8 +1378,22 @@ struct MapView: View {
             isIndoorRoute: isNavigatingIndoors,
             onOutdoorSelection: handleOutdoorSelection,
             onRegionChange: handleRegionChange,
-            onEmptyMapTap: { isShowingIndoorDetail = false }
+            onEmptyMapTap: { isShowingIndoorDetail = false },
+            selectedGeometryId: selectedIndoorLocation?.geometryId
         )
+    }
+
+    private func applyRoomSelection(_ room: RoomSearchResult) {
+        // Set the suppress flag only when onChange(of: selectedBuildingId) will fire.
+        suppressBuildingFloorReset = selectedBuildingId != room.buildingId
+        selectedBuildingId = room.buildingId
+        selectedFloorId = room.floorId
+        if let location = indoorLocationsByFloor[room.floorId]?.first(where: { $0.geometryId == room.geometryId }) {
+            focusOnRoom(geometryId: location.geometryId, floorId: room.floorId)
+            handleIndoorSelection(location)
+        } else {
+            focusOnBuilding(floorId: room.floorId)
+        }
     }
 
     private func handleIndoorSelection(_ location: IndoorLocation) {
@@ -1404,6 +1448,12 @@ struct MapView: View {
             if let baseURL = Bundle.main.resourceURL?.appendingPathComponent("CampusIndoorData") {
                 indoorRoutingGraph = IndoorRoutingLoader.load(from: baseURL)
             }
+            // Apply any room selection that arrived before data was ready
+            if let pending = pendingRoomSelection {
+                pendingRoomSelection = nil
+                applyRoomSelection(pending)
+                appState.selectedRoom = nil
+            }
         }
         .onAppear {
             locationManager.requestPermissionAndStart()
@@ -1437,6 +1487,11 @@ struct MapView: View {
             )
         }
         .onChange(of: selectedBuildingId) { _, newValue in
+            // When a room is selected via search, we handle floor ourselves — skip auto-reset
+            if suppressBuildingFloorReset {
+                suppressBuildingFloorReset = false
+                return
+            }
             guard let building = indoorBuildings.first(where: { $0.id == newValue }) else { return }
             guard !building.floors.isEmpty else {
                 selectedFloorId = ""
@@ -1470,6 +1525,16 @@ struct MapView: View {
                 selectedIndoorLocation = nil
             }
         }
+        .onChange(of: appState.selectedRoom) { _, room in
+            guard let room else { return }
+            guard !indoorBuildings.isEmpty else {
+                // Indoor data not loaded yet — apply once it finishes loading
+                pendingRoomSelection = room
+                return
+            }
+            applyRoomSelection(room)
+            appState.selectedRoom = nil
+        }
         .overlay(alignment: .trailing) {
             if !visibleFloors.isEmpty {
                 VStack {
@@ -1480,11 +1545,14 @@ struct MapView: View {
                 .padding(.bottom, 40)
             }
         }
+        .overlay(alignment: .top) {
+            mapSearchBar
+        }
         .overlay(alignment: .topLeading) {
             if !indoorBuildings.isEmpty {
                 BuildingPicker(buildings: indoorBuildings, selection: $selectedBuildingId)
                     .padding(.leading, 12)
-                    .padding(.top, 16)
+                    .padding(.top, 60)
             }
         }
         .overlay(alignment: .top) {
@@ -1682,6 +1750,121 @@ struct MapView: View {
         indoorBuildings.first(where: { $0.id == selectedBuildingId })?.floors ?? []
     }
 
+    private var mapFilteredBuildings: [CampusBuilding] {
+        let q = mapSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return [] }
+        let qLower = q.lowercased()
+        return buildingStore.buildings
+            .filter { $0.name.localizedCaseInsensitiveContains(q) }
+            .sorted { a, b in
+                let aStarts = a.name.lowercased().hasPrefix(qLower)
+                let bStarts = b.name.lowercased().hasPrefix(qLower)
+                if aStarts != bStarts { return aStarts && !bStarts }
+                return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            }
+            .prefix(3).map { $0 }
+    }
+
+    private var mapFilteredRooms: [RoomSearchResult] {
+        let q = mapSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return [] }
+        let qLower = q.lowercased()
+        return roomSearchStore.rooms
+            .filter { $0.name.localizedCaseInsensitiveContains(q) }
+            .sorted { a, b in
+                let aStarts = a.name.lowercased().hasPrefix(qLower)
+                let bStarts = b.name.lowercased().hasPrefix(qLower)
+                if aStarts != bStarts { return aStarts && !bStarts }
+                return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            }
+            .prefix(5).map { $0 }
+    }
+
+    @ViewBuilder
+    private var mapSearchBar: some View {
+        if !isNavigating && !isNavigatingIndoors {
+            VStack(spacing: 4) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search buildings & rooms...", text: $mapSearchText)
+                        .focused($isMapSearchFocused)
+                    if !mapSearchText.isEmpty {
+                        Button { mapSearchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+
+                if !mapFilteredBuildings.isEmpty || !mapFilteredRooms.isEmpty {
+                    VStack(spacing: 0) {
+                        ForEach(mapFilteredBuildings) { building in
+                            Button {
+                                appState.selectedBuildingID = building.id
+                                mapSearchText = ""
+                                isMapSearchFocused = false
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "building.2")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(building.name).font(.subheadline)
+                                        Text("Building").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .contentShape(Rectangle())
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 12)
+                            }
+                            .buttonStyle(.plain)
+                            Divider()
+                        }
+                        ForEach(mapFilteredRooms) { room in
+                            Button {
+                                appState.selectedRoom = room
+                                mapSearchText = ""
+                                isMapSearchFocused = false
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "door.right.hand.open")
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(room.name).font(.subheadline)
+                                        Text(room.buildingName).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .contentShape(Rectangle())
+                                .padding(.vertical, 10)
+                                .padding(.horizontal, 12)
+                            }
+                            .buttonStyle(.plain)
+                            Divider()
+                        }
+                    }
+                    .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+        }
+    }
+
     private func syncSelection(with buildings: [IndoorBuilding]) {
         let resolvedBuilding: IndoorBuilding?
         if selectedBuildingId.isEmpty {
@@ -1721,6 +1904,27 @@ struct MapView: View {
         guard rect.size.width > 0, rect.size.height > 0 else { return }
 
         let padded = rect.insetBy(dx: -rect.size.width * 0.25, dy: -rect.size.height * 0.25)
+        focusedRegion = MKCoordinateRegion(padded)
+    }
+
+    /// Zooms to a specific room polygon. Falls back to whole building if room shapes not found.
+    private func focusOnRoom(geometryId: String, floorId: String) {
+        guard let shapes = indoorShapesByFloor[floorId] else {
+            focusOnBuilding(floorId: floorId)
+            return
+        }
+        var rect: MKMapRect?
+        for shape in shapes where shape.geometryId == geometryId {
+            if let r = mapRect(for: shape.shape) {
+                rect = rect.map { $0.union(r) } ?? r
+            }
+        }
+        guard let rect, rect.size.width > 0, rect.size.height > 0 else {
+            focusOnBuilding(floorId: floorId)
+            return
+        }
+        // Show the room with enough surrounding context to orient the user
+        let padded = rect.insetBy(dx: -rect.size.width * 4, dy: -rect.size.height * 4)
         focusedRegion = MKCoordinateRegion(padded)
     }
 
