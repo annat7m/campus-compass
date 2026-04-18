@@ -13,6 +13,7 @@ import SwiftData
 struct LocationPreviewSheet: View {
     let location: CampusLocation
     let isFavorite: Bool
+    let largeTextEnabled: Bool
     let onFavoriteTapped: (CampusLocation) -> Void
     let onDirectionsTapped: (CampusLocation) -> Void
 
@@ -92,6 +93,7 @@ struct LocationPreviewSheet: View {
         .padding(.bottom, 20)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
     }
 }
 
@@ -114,6 +116,7 @@ private struct InfoRow: View {
 struct NavigationStepsView: View {
     let route: NavigationRoute
     let currentStepIndex: Int
+    let largeTextEnabled: Bool
 
     var body: some View {
         NavigationStack {
@@ -154,6 +157,7 @@ struct NavigationStepsView: View {
             .navigationTitle("Turn-by-Turn")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
     }
 
     private func stepDistanceText(_ meters: CLLocationDistance) -> String {
@@ -856,7 +860,9 @@ struct MapView: View {
     @State private var navigationDestination: CampusLocation?
     @State private var hasLoggedArrivalForActiveRoute = false
     @State private var pendingGraphHandoff: PendingGraphHandoff?
+    @State private var pendingGraphPreviewCoordinates: [CLLocationCoordinate2D] = []
     @State private var isSwitchingToGraphRoute = false
+    @State private var shouldRefocusParkingWhenLocationAvailable = false
     
     @StateObject private var locationManager = LocationManager()
     @State private var hasCenteredOnUser = false
@@ -891,15 +897,17 @@ struct MapView: View {
 
     private var displayedRoutePolyline: MKPolyline? {
         guard let route = activeNavigationRoute else { return nil }
+        let routeCoordinates = routeDisplayCoordinates(for: route)
         guard
             isNavigating,
             let userCoordinate = locationManager.location?.coordinate,
             let remainingPolyline = remainingRoutePolyline(
-                routeCoordinates: route.coordinates,
+                routeCoordinates: routeCoordinates,
                 userCoordinate: userCoordinate
             )
         else {
-            return route.polyline
+            guard !routeCoordinates.isEmpty else { return nil }
+            return MKPolyline(coordinates: routeCoordinates, count: routeCoordinates.count)
         }
 
         return remainingPolyline
@@ -911,6 +919,10 @@ struct MapView: View {
 
     private var shouldUseAccessibleEntrances: Bool {
         profiles.first?.accessibilityMode ?? false
+    }
+
+    private var largeTextEnabled: Bool {
+        profiles.first?.largeText ?? false
     }
 
     // Fill each `coordinates` array with the polygon points for that lot.
@@ -943,7 +955,15 @@ struct MapView: View {
                 CLLocationCoordinate2D(latitude: 45.52299, longitude: -123.10676), // bottom-right
                 CLLocationCoordinate2D(latitude: 45.52299, longitude: -123.10744), // bottom-left
             ]),
-        //ParkingLot(id: "lot-b", title: "Lot B", coordinates: [])
+        ParkingLot(
+            id: "lot-b",
+            title: "Lot B",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52262, longitude: -123.11098), // top-left
+                CLLocationCoordinate2D(latitude: 45.52262, longitude: -123.11067), // top-right
+                CLLocationCoordinate2D(latitude: 45.52240, longitude: -123.11067), // bottom-right
+                CLLocationCoordinate2D(latitude: 45.52232, longitude: -123.11098), // bottom-left
+            ])
     ]
 
     private var parkingFocusRegion: MKCoordinateRegion? {
@@ -1348,6 +1368,7 @@ struct MapView: View {
         navigationDestination = nil
         hasLoggedArrivalForActiveRoute = false
         pendingGraphHandoff = nil
+        pendingGraphPreviewCoordinates = []
         isSwitchingToGraphRoute = false
     }
     
@@ -1357,6 +1378,7 @@ struct MapView: View {
         let destinationCoordinate = resolvedDestination.location.coordinate
 
         isShowingParkingHighlights = false
+        shouldRefocusParkingWhenLocationAvailable = false
         selectedOutdoorLocation = nil
         selectedIndoorLocation = nil
         guard let userCoordinate = locationManager.location?.coordinate else {
@@ -1369,6 +1391,7 @@ struct MapView: View {
         currentStepIndex = 0
         hasLoggedArrivalForActiveRoute = false
         pendingGraphHandoff = nil
+        pendingGraphPreviewCoordinates = []
         isSwitchingToGraphRoute = false
 
         do {
@@ -1412,6 +1435,15 @@ struct MapView: View {
                         destinationCoordinate: destinationCoordinate,
                         preferredAnchorNodeID: preferredAnchorNodeID
                     )
+                    if let graphPreviewRoute = routeCoordinator.campusRoute(
+                        from: bootstrap.entryNode.coordinate,
+                        destinationName: resolvedDestination.location.name,
+                        destinationCoordinate: destinationCoordinate,
+                        preferredAnchorNodeID: preferredAnchorNodeID,
+                        requireAccessibleEntrances: shouldUseAccessibleEntrances
+                    ) {
+                        pendingGraphPreviewCoordinates = graphPreviewRoute.coordinates
+                    }
                 }
             } else {
                 route = try await routeCoordinator.route(
@@ -1430,6 +1462,7 @@ struct MapView: View {
             navigationError = error.localizedDescription
             isCalculatingRoute = false
             pendingGraphHandoff = nil
+            pendingGraphPreviewCoordinates = []
             isSwitchingToGraphRoute = false
         }
     }
@@ -1511,6 +1544,12 @@ struct MapView: View {
 
             maybeSwitchFromAppleToCampusGraph(using: location)
             updateNavigationProgress(using: location)
+
+            if isShowingParkingHighlights,
+               shouldRefocusParkingWhenLocationAvailable,
+               focusParkingHighlightsIncludingUser() {
+                shouldRefocusParkingWhenLocationAvailable = false
+            }
         }
         .onChange(of: appState.selectedBuildingID) { _, newID in
             guard let newID else { return }
@@ -1529,9 +1568,7 @@ struct MapView: View {
             isShowingParkingHighlights = true
             selectedIndoorLocation = nil
             selectedOutdoorLocation = nil
-            if let parkingFocusRegion {
-                focusedRegion = parkingFocusRegion
-            }
+            shouldRefocusParkingWhenLocationAvailable = !focusParkingHighlightsIncludingUser()
         }
         .onChange(of: selectedBuildingId) { _, newValue in
             guard let building = indoorBuildings.first(where: { $0.id == newValue }) else { return }
@@ -1637,6 +1674,7 @@ struct MapView: View {
             if isShowingParkingHighlights {
                 Button {
                     isShowingParkingHighlights = false
+                    shouldRefocusParkingWhenLocationAvailable = false
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "eye.slash.fill")
@@ -1670,6 +1708,7 @@ struct MapView: View {
             LocationPreviewSheet(
                 location: location,
                 isFavorite: isFavorite(location),
+                largeTextEnabled: largeTextEnabled,
                 onFavoriteTapped: { tappedLocation in
                     toggleFavorite(for: tappedLocation)
                 },
@@ -1681,7 +1720,7 @@ struct MapView: View {
             )
         }
         .sheet(item: $selectedIndoorLocation) { location in
-            IndoorLocationDetailView(location: location)
+            IndoorLocationDetailView(location: location, largeTextEnabled: largeTextEnabled)
                 .presentationDetents([.height(220), .medium, .large], selection: $detailDetent)
                 .presentationDragIndicator(.visible)
                 .presentationBackgroundInteraction(.enabled)
@@ -1690,7 +1729,8 @@ struct MapView: View {
             if let activeNavigationRoute {
                 NavigationStepsView(
                     route: activeNavigationRoute,
-                    currentStepIndex: currentStepIndex
+                    currentStepIndex: currentStepIndex,
+                    largeTextEnabled: largeTextEnabled
                 )
             } else {
                 Text("No route available.")
@@ -1803,11 +1843,34 @@ struct MapView: View {
                 requireAccessibleEntrances: shouldUseAccessibleEntrances
             ) {
                 self.pendingGraphHandoff = nil
+                self.pendingGraphPreviewCoordinates = []
                 applyActiveNavigationRoute(graphRoute)
             } else {
                 self.pendingGraphHandoff = nil
+                self.pendingGraphPreviewCoordinates = []
             }
         }
+    }
+
+    private func routeDisplayCoordinates(for route: NavigationRoute) -> [CLLocationCoordinate2D] {
+        guard
+            route.source == .apple,
+            !pendingGraphPreviewCoordinates.isEmpty
+        else {
+            return route.coordinates
+        }
+
+        var combined = route.coordinates
+        appendUniqueCoordinates(pendingGraphPreviewCoordinates, into: &combined)
+        return combined
+    }
+
+    @discardableResult
+    private func focusParkingHighlightsIncludingUser() -> Bool {
+        guard locationManager.location != nil else { return false }
+        guard let region = parkingFocusRegion else { return false }
+        focusedRegion = region
+        return true
     }
 
     private func recordArrivalIfNeeded(using location: CLLocation) {
@@ -2031,6 +2094,7 @@ private struct ProjectedRoutePoint {
 
 private struct IndoorLocationDetailView: View {
     let location: IndoorLocation
+    let largeTextEnabled: Bool
 
     var body: some View {
         NavigationStack {
@@ -2078,6 +2142,7 @@ private struct IndoorLocationDetailView: View {
             .navigationTitle("Details")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
     }
 
     private func formatHours(_ entry: IndoorOpeningHours) -> String {
