@@ -730,6 +730,11 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                 mapView.deselectAnnotation(view.annotation, animated: true)
                 return
             }
+            if let ann = view.annotation as? ParkingLabelAnnotation {
+                openDrivingDirections(to: ann)
+                mapView.deselectAnnotation(view.annotation, animated: true)
+                return
+            }
             if view.annotation is MKClusterAnnotation {
                 mapView.deselectAnnotation(view.annotation, animated: true)
                 return
@@ -750,6 +755,15 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             let lat = (coordinate.latitude * 100000).rounded() / 100000
             let lon = (coordinate.longitude * 100000).rounded() / 100000
             return "\(name.lowercased())-\(lat)-\(lon)"
+        }
+
+        private func openDrivingDirections(to parking: ParkingLabelAnnotation) {
+            let destination = MKMapItem(placemark: MKPlacemark(coordinate: parking.coordinate))
+            destination.name = parking.parkingLot.title
+            MKMapItem.openMaps(
+                with: [MKMapItem.forCurrentLocation(), destination],
+                launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
+            )
         }
 
         private func drawOrder(for kind: IndoorKind) -> Int {
@@ -963,7 +977,56 @@ struct MapView: View {
                 CLLocationCoordinate2D(latitude: 45.52262, longitude: -123.11067), // top-right
                 CLLocationCoordinate2D(latitude: 45.52240, longitude: -123.11067), // bottom-right
                 CLLocationCoordinate2D(latitude: 45.52232, longitude: -123.11098), // bottom-left
-            ])
+            ]),
+        ParkingLot(
+            id: "lot-f",
+            title: "Lot F",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52461, longitude: -123.11188), // top-left
+                CLLocationCoordinate2D(latitude: 45.52461, longitude: -123.11126), // top-right
+                CLLocationCoordinate2D(latitude: 45.52448, longitude: -123.11126), // top-right-2
+                CLLocationCoordinate2D(latitude: 45.52448, longitude: -123.10969), // top-right-far
+                CLLocationCoordinate2D(latitude: 45.52432, longitude: -123.10969), // top-right-far-2
+                CLLocationCoordinate2D(latitude: 45.52432, longitude: -123.11000), // top-right-far-3
+
+                CLLocationCoordinate2D(latitude: 45.52379, longitude: -123.11000), // bottom-right
+
+                CLLocationCoordinate2D(latitude: 45.52379, longitude: -123.11021), // bottom-left
+                CLLocationCoordinate2D(latitude: 45.52431, longitude: -123.11023), // bottom-left-2
+                CLLocationCoordinate2D(latitude: 45.52431, longitude: -123.11090), // bottom-left-far
+                CLLocationCoordinate2D(latitude: 45.52401, longitude: -123.11090), // bottom-left-far-2
+                CLLocationCoordinate2D(latitude: 45.52401, longitude: -123.11166), // bottom-left-far-3
+                CLLocationCoordinate2D(latitude: 45.52354, longitude: -123.11166), // bottom-left-far-4
+                CLLocationCoordinate2D(latitude: 45.52354, longitude: -123.11191), // bottom-left-far-5
+            ]),
+        ParkingLot(
+            id: "lot-g",
+            title: "Lot G",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52545, longitude: -123.11189), // top-left-side
+                CLLocationCoordinate2D(latitude: 45.52545, longitude: -123.11125), // top-left-side-2
+                CLLocationCoordinate2D(latitude: 45.52550, longitude: -123.11103), // top-left-side-3
+                CLLocationCoordinate2D(latitude: 45.52550, longitude: -123.11053), // top-left-side-4
+
+                CLLocationCoordinate2D(latitude: 45.52550, longitude: -123.10940), // top-right-side
+                CLLocationCoordinate2D(latitude: 45.52545, longitude: -123.10940), // top-right-side-2
+                CLLocationCoordinate2D(latitude: 45.52545, longitude: -123.10933), // top-right-side-3
+
+
+                CLLocationCoordinate2D(latitude: 45.52463, longitude: -123.10933), // bottom-right-side
+                CLLocationCoordinate2D(latitude: 45.52463, longitude: -123.10957), // bottom-right-side-2
+                CLLocationCoordinate2D(latitude: 45.52534, longitude: -123.10957), // bottom-right-side-3
+                
+                CLLocationCoordinate2D(latitude: 45.52534, longitude: -123.11115), // bottom-left-side
+                CLLocationCoordinate2D(latitude: 45.52497, longitude: -123.11115), // bottom-left-side-2
+                CLLocationCoordinate2D(latitude: 45.52497, longitude: -123.11189), // bottom-left-side-3
+
+
+
+
+
+                CLLocationCoordinate2D(latitude: 45.52545, longitude: -123.11189), // bottom-left
+            ]),
     ]
 
     private var parkingFocusRegion: MKCoordinateRegion? {
