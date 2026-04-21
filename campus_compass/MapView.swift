@@ -415,6 +415,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     let routePolyline: MKPolyline?
     let onOutdoorSelection: (CampusLocation) -> Void
     let onRegionChange: (MKCoordinateRegion) -> Void
+    var selectedIndoorLocationId: String?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -459,6 +460,29 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             outdoor: outdoorLocations,
             parkingLots: isShowingParkingHighlights ? parkingLots : []
         )
+
+        // Inflate/deflate the marker for the programmatically selected room
+        let newId = selectedIndoorLocationId
+        let oldId = context.coordinator.lastProgrammaticallySelectedId
+        if newId != oldId {
+            context.coordinator.lastProgrammaticallySelectedId = newId
+            if let oldId, let ann = context.coordinator.indoorLocationAnnotations[oldId] {
+                if let view = mapView.view(for: ann) as? MKMarkerAnnotationView {
+                    view.clusteringIdentifier = IndoorLocationAnnotation.clusteringIdentifier
+                }
+                mapView.deselectAnnotation(ann, animated: true)
+            }
+        }
+        if let newId, let ann = context.coordinator.indoorLocationAnnotations[newId] {
+            if let view = mapView.view(for: ann) as? MKMarkerAnnotationView {
+                view.clusteringIdentifier = nil
+            }
+            if !mapView.selectedAnnotations.contains(where: { $0 === ann }) {
+                context.coordinator.isProgrammaticallySelecting = true
+                mapView.selectAnnotation(ann, animated: true)
+                context.coordinator.isProgrammaticallySelecting = false
+            }
+        }
     }
 
     private func regionEquals(_ a: MKCoordinateRegion?, _ b: MKCoordinateRegion?) -> Bool {
@@ -517,6 +541,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
         var parkingLabelAnnotations: [String: ParkingLabelAnnotation] = [:]
         var userLocationAnnotation: UserLocationAnnotation?
+        var isProgrammaticallySelecting = false
+        var lastProgrammaticallySelectedId: String? = nil
 
         init(_ parent: MKMapViewRepresentable) {
             self.parent = parent
@@ -684,7 +710,9 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                     view?.glyphTintColor = .white
                     view?.glyphText = nil
                 }
-                view?.clusteringIdentifier = IndoorLocationAnnotation.clusteringIdentifier
+                // Selected room must not cluster — clustering would absorb it before selectAnnotation can inflate it
+                let isSelected = indoor.indoorLocation.id == parent.selectedIndoorLocationId
+                view?.clusteringIdentifier = isSelected ? nil : IndoorLocationAnnotation.clusteringIdentifier
                 view?.canShowCallout = false
                 return view
             }
@@ -777,6 +805,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if isProgrammaticallySelecting { return }
             if let ann = view.annotation as? IndoorLocationAnnotation {
                 parent.selectedLocation = ann.indoorLocation
                 mapView.deselectAnnotation(view.annotation, animated: true)
@@ -1826,7 +1855,8 @@ struct MapView: View {
                 if widthMeters >= 1200 {
                     selectedIndoorLocation = nil
                 }
-            }
+            },
+            selectedIndoorLocationId: selectedIndoorLocation?.id
         )
         .ignoresSafeArea()
         .task {
