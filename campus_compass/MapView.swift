@@ -16,6 +16,7 @@ struct LocationPreviewSheet: View {
     let largeTextEnabled: Bool
     let onFavoriteTapped: (CampusLocation) -> Void
     let onDirectionsTapped: (CampusLocation) -> Void
+    let onShowIndoorMap: (() -> Void)?
 
     var body: some View {
         ScrollView {
@@ -48,6 +49,15 @@ struct LocationPreviewSheet: View {
                     Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                 }
                 .buttonStyle(.borderedProminent)
+
+                if let onShowIndoorMap {
+                    Button {
+                        onShowIndoorMap()
+                    } label: {
+                        Label("View Indoor Map", systemImage: "building.2")
+                    }
+                    .buttonStyle(.bordered)
+                }
 
                 Divider()
 
@@ -1534,6 +1544,18 @@ struct MapView: View {
         name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    private func indoorBuilding(for location: CampusLocation) -> IndoorBuilding? {
+        // Outdoor name → indoor building name aliases. Some buildings appear under
+        // different names between the outdoor dataset and the indoor floor-stacks data.
+        let aliases: [String: String] = [
+            "strain science center": "strain hall",
+            "university center": "washburne hall (university center)"
+        ]
+        let outdoorKey = location.name.lowercased()
+        let indoorKey = aliases[outdoorKey] ?? outdoorKey
+        return indoorBuildings.first { $0.name.lowercased() == indoorKey }
+    }
+
     private func matchCampusLocation(for building: CampusBuilding) -> CampusLocation {
         // Try to match your rich local data first (best for sheet)
         if let match = campusLocations.first(where: { $0.name.caseInsensitiveCompare(building.name) == .orderedSame }) {
@@ -2080,6 +2102,7 @@ struct MapView: View {
             }
         }
         .sheet(item: $selectedOutdoorLocation) { location in
+            let matchedIndoorBuildingId = indoorBuilding(for: location)?.id
             LocationPreviewSheet(
                 location: location,
                 isFavorite: isFavorite(location),
@@ -2090,6 +2113,12 @@ struct MapView: View {
                 onDirectionsTapped: { tappedLocation in
                     Task {
                         await startDirections(to: tappedLocation)
+                    }
+                },
+                onShowIndoorMap: matchedIndoorBuildingId.map { buildingId in
+                    {
+                        selectedBuildingId = buildingId
+                        selectedOutdoorLocation = nil
                     }
                 }
             )
