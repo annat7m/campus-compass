@@ -1031,10 +1031,16 @@ struct MapView: View {
             id: "lot-d-cascade-back",
             title: "Lot D",
             coordinates: [
-                CLLocationCoordinate2D(latitude: 45.52222, longitude: -123.10826), // top-left
-                CLLocationCoordinate2D(latitude: 45.52222, longitude: -123.10758), // top-right
-                CLLocationCoordinate2D(latitude: 45.52218, longitude: -123.10758), // bottom-right
-                CLLocationCoordinate2D(latitude: 45.52218, longitude: -123.10826), // bottom-left
+                CLLocationCoordinate2D(latitude: 45.52216, longitude: -123.10826), // top-left-side
+                CLLocationCoordinate2D(latitude: 45.52216, longitude: -123.10774), // top-left-side-02
+                CLLocationCoordinate2D(latitude: 45.52212, longitude: -123.10774), // top-left-side-03
+
+                CLLocationCoordinate2D(latitude: 45.52212, longitude: -123.10742), // top-right-side
+                CLLocationCoordinate2D(latitude: 45.52216, longitude: -123.10742), // top-right-side-02
+                CLLocationCoordinate2D(latitude: 45.52216, longitude: -123.10685), // top-right-side-03
+
+                CLLocationCoordinate2D(latitude: 45.52200, longitude: -123.10685), // bottom-right-side
+                CLLocationCoordinate2D(latitude: 45.52200, longitude: -123.10826), // bottom-left-side
             ]),
         ParkingLot(
             id: "lot-e-1-cascade-front",
