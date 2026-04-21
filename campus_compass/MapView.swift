@@ -943,7 +943,7 @@ struct MapView: View {
     // Keep points ordered clockwise or counter-clockwise.
     private let parkingLots: [ParkingLot] = [
         ParkingLot(
-            id: "lot-d",
+            id: "lot-d-cascade-back",
             title: "Lot D",
             coordinates: [
                 CLLocationCoordinate2D(latitude: 45.52222, longitude: -123.10826), // top-left
@@ -952,8 +952,8 @@ struct MapView: View {
                 CLLocationCoordinate2D(latitude: 45.52218, longitude: -123.10826), // bottom-left
             ]),
         ParkingLot(
-            id: "lot-c-1",
-            title: "Lot C",
+            id: "lot-e-1-cascade-front",
+            title: "Lot E",
             coordinates: [
                 CLLocationCoordinate2D(latitude: 45.52307, longitude: -123.10852), // top-left
                 CLLocationCoordinate2D(latitude: 45.52307, longitude: -123.10752), // top-right
@@ -961,8 +961,8 @@ struct MapView: View {
                 CLLocationCoordinate2D(latitude: 45.52296, longitude: -123.10852), // bottom-left
             ]),
         ParkingLot(
-            id: "lot-c-2",
-            title: "Lot C",
+            id: "lot-e-2-cascade-front",
+            title: "Lot E",
             coordinates: [
                 CLLocationCoordinate2D(latitude: 45.52306, longitude: -123.10744), // top-left
                 CLLocationCoordinate2D(latitude: 45.52306, longitude: -123.10676), // top-right
@@ -970,8 +970,8 @@ struct MapView: View {
                 CLLocationCoordinate2D(latitude: 45.52299, longitude: -123.10744), // bottom-left
             ]),
         ParkingLot(
-            id: "lot-b",
-            title: "Lot B",
+            id: "lot-g-walter",
+            title: "Lot G",
             coordinates: [
                 CLLocationCoordinate2D(latitude: 45.52262, longitude: -123.11098), // top-left
                 CLLocationCoordinate2D(latitude: 45.52262, longitude: -123.11067), // top-right
@@ -979,8 +979,8 @@ struct MapView: View {
                 CLLocationCoordinate2D(latitude: 45.52232, longitude: -123.11098), // bottom-left
             ]),
         ParkingLot(
-            id: "lot-f",
-            title: "Lot F",
+            id: "lot-k-gilbert",
+            title: "Lot K",
             coordinates: [
                 CLLocationCoordinate2D(latitude: 45.52461, longitude: -123.11188), // top-left
                 CLLocationCoordinate2D(latitude: 45.52461, longitude: -123.11126), // top-right
@@ -1000,8 +1000,8 @@ struct MapView: View {
                 CLLocationCoordinate2D(latitude: 45.52354, longitude: -123.11191), // bottom-left-far-5
             ]),
         ParkingLot(
-            id: "lot-g",
-            title: "Lot G",
+            id: "lot-m-stollar",
+            title: "Lot M",
             coordinates: [
                 CLLocationCoordinate2D(latitude: 45.52545, longitude: -123.11189), // top-left-side
                 CLLocationCoordinate2D(latitude: 45.52545, longitude: -123.11125), // top-left-side-2
@@ -1022,10 +1022,57 @@ struct MapView: View {
                 CLLocationCoordinate2D(latitude: 45.52497, longitude: -123.11189), // bottom-left-side-3
 
 
-
-
-
                 CLLocationCoordinate2D(latitude: 45.52545, longitude: -123.11189), // bottom-left
+            ]),
+        ParkingLot(
+            id: "lot-c-taylor-meade",
+            title: "Lot C",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52022, longitude: -123.10804), // top-left
+                CLLocationCoordinate2D(latitude: 45.52060, longitude: -123.10723), // top-right
+                CLLocationCoordinate2D(latitude: 45.52057, longitude: -123.10719), // top-right-02
+                CLLocationCoordinate2D(latitude: 45.52056, longitude: -123.10683), // middle-right
+                CLLocationCoordinate2D(latitude: 45.52041, longitude: -123.10684), // middle-right-02
+                CLLocationCoordinate2D(latitude: 45.52041, longitude: -123.10689), // middle-right-03
+                CLLocationCoordinate2D(latitude: 45.52037, longitude: -123.10694), // middle-right-04
+                
+                
+                
+                CLLocationCoordinate2D(latitude: 45.52028, longitude: -123.10687), // bottom-right-curve
+                CLLocationCoordinate2D(latitude: 45.52024, longitude: -123.10685), // bottom-right-curve-02
+                CLLocationCoordinate2D(latitude: 45.52021, longitude: -123.10686), // bottom-right-curve-03
+                CLLocationCoordinate2D(latitude: 45.52017, longitude: -123.10694), // bottom-right-corner
+                CLLocationCoordinate2D(latitude: 45.52012, longitude: -123.10689), // bottom-right-corner-02
+
+
+                CLLocationCoordinate2D(latitude: 45.51975, longitude: -123.10772), // bottom-left
+            ]),
+        ParkingLot(
+            id: "lot-h-drake-house",
+            title: "Lot H",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52156, longitude: -123.11153), // top-left
+                CLLocationCoordinate2D(latitude: 45.52156, longitude: -123.11118), // top-right
+                CLLocationCoordinate2D(latitude: 45.52134, longitude: -123.11118), // bottom-right
+                CLLocationCoordinate2D(latitude: 45.52134, longitude: -123.11153), // bottom-left
+            ]),
+        ParkingLot(
+            id: "lot-p-main-street",
+            title: "Lot P",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52200, longitude: -123.11192), // top-left
+                CLLocationCoordinate2D(latitude: 45.52200, longitude: -123.11156), // top-right
+                CLLocationCoordinate2D(latitude: 45.52135, longitude: -123.11156), // bottom-right
+                CLLocationCoordinate2D(latitude: 45.52135, longitude: -123.11192), // bottom-left
+            ]),
+        ParkingLot(
+            id: "lot-I-Admissions",
+            title: "Lot I",
+            coordinates: [
+                CLLocationCoordinate2D(latitude: 45.52292, longitude: -123.11192), // top-left
+                CLLocationCoordinate2D(latitude: 45.52292, longitude: -123.11153), // top-right
+                CLLocationCoordinate2D(latitude: 45.52205, longitude: -123.11153), // bottom-right
+                CLLocationCoordinate2D(latitude: 45.52205, longitude: -123.11192), // bottom-left
             ]),
     ]
 
@@ -1074,11 +1121,11 @@ struct MapView: View {
             longitude: -123.10723,
             floors: 3,
             studentServiceOffices: ["N/A"],
-            accessibilityInfo: "Elevator/ramp info TBD",
+            accessibilityInfo: "Elevator located on first floor",
             hoursOpen: "7AM - 5PM",
             websiteURL: nil,
             contactInfo: "N/A",
-            shortDescription: "Science classrooms and laboratories."
+            shortDescription: "Primarily used by student's in STEM classes. This building includes several laboratories open for students to work in"
         ),
         .init(
             name: "Aucoin Hall",
@@ -1627,6 +1674,10 @@ struct MapView: View {
                 span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
             )
         }
+        .onChange(of: appState.outdoorLocationSelectionRequestID) { _, _ in
+            guard let requestedName = appState.selectedOutdoorLocationName else { return }
+            focusOutdoorLocationPreview(named: requestedName)
+        }
         .onChange(of: appState.parkingHighlightRequestID) { _, _ in
             isShowingParkingHighlights = true
             selectedIndoorLocation = nil
@@ -1934,6 +1985,24 @@ struct MapView: View {
         guard let region = parkingFocusRegion else { return false }
         focusedRegion = region
         return true
+    }
+
+    private func focusOutdoorLocationPreview(named locationName: String) {
+        let normalizedRequestedName = normalizedOutdoorKey(name: locationName)
+        guard let matchedLocation = displayedOutdoorLocations.first(where: {
+            normalizedOutdoorKey(name: $0.name) == normalizedRequestedName
+        }) else {
+            return
+        }
+
+        let resolvedDestination = resolveOutdoorDestination(for: matchedLocation)
+        isShowingParkingHighlights = false
+        selectedIndoorLocation = nil
+        selectedOutdoorLocation = resolvedDestination.location
+        focusedRegion = MKCoordinateRegion(
+            center: resolvedDestination.focusCoordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
+        )
     }
 
     private func recordArrivalIfNeeded(using location: CLLocation) {

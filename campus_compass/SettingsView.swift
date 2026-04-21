@@ -194,6 +194,11 @@ struct SettingsView: View {
                     items: $accessibilityToggles,
                     hiddenTitles: ["Voice Navigation"]
                 )
+
+                // MARK: - Debugging purposes only
+                #if DEBUG
+                debugSection
+                #endif
                 
             }
             .padding(.top)

@@ -15,8 +15,16 @@ final class AppState: ObservableObject {
     
     @Published var selectedBuildingID: CKRecord.ID? = nil
     @Published var parkingHighlightRequestID: Int = 0
+    @Published var selectedOutdoorLocationName: String? = nil
+    @Published var outdoorLocationSelectionRequestID: Int = 0
 
     func requestParkingHighlights() {
         parkingHighlightRequestID += 1
+    }
+
+    func requestOutdoorLocationSelection(named name: String) {
+        selectedOutdoorLocationName = name
+        selectedTab = 1
+        outdoorLocationSelectionRequestID += 1
     }
 }

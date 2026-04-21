@@ -599,7 +599,7 @@ struct HomeView: View {
     }
 
     private let recentLocations: [MenuItem] = [
-        MenuItem(id: "recent-strain", title: "Strain Science Center", systemImage: "building", action: { print("Strain tapped") })
+        MenuItem(id: "recent-strain", title: "Strain Science Center", systemImage: "building", action: {})
     ]
 
     private var favoriteItems: [MenuItem] {
@@ -608,7 +608,29 @@ struct HomeView: View {
                 id: "favorite-\(favorite)",
                 title: favorite,
                 systemImage: "building",
-                action: { print("Tapped \(favorite)") }
+                action: {}
+            )
+        }
+    }
+
+    private var actionableRecentLocations: [MenuItem] {
+        recentLocations.map { item in
+            MenuItem(
+                id: item.id,
+                title: item.title,
+                systemImage: item.systemImage,
+                action: { appState.requestOutdoorLocationSelection(named: item.title) }
+            )
+        }
+    }
+
+    private var actionableFavoriteItems: [MenuItem] {
+        favoriteItems.map { item in
+            MenuItem(
+                id: item.id,
+                title: item.title,
+                systemImage: item.systemImage,
+                action: { appState.requestOutdoorLocationSelection(named: item.title) }
             )
         }
     }
@@ -636,7 +658,7 @@ struct HomeView: View {
                         SectionCarouselView(
                             title: HomeSection.recent.title,
                             subtitle: "Pick up where you left off",
-                            items: recentLocations,
+                            items: actionableRecentLocations,
                             gradient: HomeSection.recent.gradient,
                             cardSize: CGSize(width: 240, height: 176),
                             theme: theme
@@ -660,7 +682,7 @@ struct HomeView: View {
                                 )
                             } else {
                                 LocationCardsRow(
-                                    items: favoriteItems,
+                                    items: actionableFavoriteItems,
                                     gradient: HomeSection.favorites.gradient,
                                     cardSize: CGSize(width: 240, height: 176),
                                     category: HomeSection.favorites.title,
