@@ -16,6 +16,7 @@ struct LocationPreviewSheet: View {
     let largeTextEnabled: Bool
     let onFavoriteTapped: (CampusLocation) -> Void
     let onDirectionsTapped: (CampusLocation) -> Void
+    let onShowIndoorMap: (() -> Void)?
 
     var body: some View {
         ScrollView {
@@ -48,6 +49,15 @@ struct LocationPreviewSheet: View {
                     Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                 }
                 .buttonStyle(.borderedProminent)
+
+                if let onShowIndoorMap {
+                    Button {
+                        onShowIndoorMap()
+                    } label: {
+                        Label("View Indoor Map", systemImage: "building.2")
+                    }
+                    .buttonStyle(.bordered)
+                }
 
                 Divider()
 
@@ -93,7 +103,7 @@ struct LocationPreviewSheet: View {
         .padding(.bottom, 20)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
+        .largeTextSize(largeTextEnabled, .accessibility2)
     }
 }
 
@@ -157,7 +167,7 @@ struct NavigationStepsView: View {
             .navigationTitle("Turn-by-Turn")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
+        .largeTextSize(largeTextEnabled, .accessibility2)
     }
 
     private func stepDistanceText(_ meters: CLLocationDistance) -> String {
@@ -405,6 +415,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
     let routePolyline: MKPolyline?
     let onOutdoorSelection: (CampusLocation) -> Void
     let onRegionChange: (MKCoordinateRegion) -> Void
+    var selectedIndoorLocationId: String?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -449,6 +460,29 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
             outdoor: outdoorLocations,
             parkingLots: isShowingParkingHighlights ? parkingLots : []
         )
+
+        // Inflate/deflate the marker for the programmatically selected room
+        let newId = selectedIndoorLocationId
+        let oldId = context.coordinator.lastProgrammaticallySelectedId
+        if newId != oldId {
+            context.coordinator.lastProgrammaticallySelectedId = newId
+            if let oldId, let ann = context.coordinator.indoorLocationAnnotations[oldId] {
+                if let view = mapView.view(for: ann) as? MKMarkerAnnotationView {
+                    view.clusteringIdentifier = IndoorLocationAnnotation.clusteringIdentifier
+                }
+                mapView.deselectAnnotation(ann, animated: true)
+            }
+        }
+        if let newId, let ann = context.coordinator.indoorLocationAnnotations[newId] {
+            if let view = mapView.view(for: ann) as? MKMarkerAnnotationView {
+                view.clusteringIdentifier = nil
+            }
+            if !mapView.selectedAnnotations.contains(where: { $0 === ann }) {
+                context.coordinator.isProgrammaticallySelecting = true
+                mapView.selectAnnotation(ann, animated: true)
+                context.coordinator.isProgrammaticallySelecting = false
+            }
+        }
     }
 
     private func regionEquals(_ a: MKCoordinateRegion?, _ b: MKCoordinateRegion?) -> Bool {
@@ -507,6 +541,8 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         var outdoorAnnotations: [String: OutdoorPlaceAnnotation] = [:]
         var parkingLabelAnnotations: [String: ParkingLabelAnnotation] = [:]
         var userLocationAnnotation: UserLocationAnnotation?
+        var isProgrammaticallySelecting = false
+        var lastProgrammaticallySelectedId: String? = nil
 
         init(_ parent: MKMapViewRepresentable) {
             self.parent = parent
@@ -674,7 +710,9 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
                     view?.glyphTintColor = .white
                     view?.glyphText = nil
                 }
-                view?.clusteringIdentifier = IndoorLocationAnnotation.clusteringIdentifier
+                // Selected room must not cluster — clustering would absorb it before selectAnnotation can inflate it
+                let isSelected = indoor.indoorLocation.id == parent.selectedIndoorLocationId
+                view?.clusteringIdentifier = isSelected ? nil : IndoorLocationAnnotation.clusteringIdentifier
                 view?.canShowCallout = false
                 return view
             }
@@ -767,6 +805,7 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if isProgrammaticallySelecting { return }
             if let ann = view.annotation as? IndoorLocationAnnotation {
                 parent.selectedLocation = ann.indoorLocation
                 mapView.deselectAnnotation(view.annotation, animated: true)
@@ -894,19 +933,29 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
 
         private func markerSymbol(for location: IndoorLocation) -> String? {
-            if location.use == .bathroom { return "figure.stand" }
-            if location.use == .stairs { return "stairs" }
-            if location.use == .elevator { return "arrow.up.and.down" }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
-                return "cup.and.saucer.fill"
+            switch location.use {
+            case .bathroom:       return "figure.stand"
+            case .stairs:         return "stairs"
+            case .elevator:       return "arrow.up.and.down"
+            case .classroom:      return "studentdesk"
+            case .laboratory:     return "testtube.2"
+            case .conferenceRoom: return "person.3.fill"
+            case .office:         return "briefcase.fill"
+            case .lounge:         return "chair.lounge.fill"
+            case .gym:            return "figure.run"
+            case .foodAndDrink:   return "fork.knife"
+            case .none:
+                if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
+                    return "cup.and.saucer.fill"
+                }
+                if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("lab") }) {
+                    return "testtube.2"
+                }
+                if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("book") }) {
+                    return "book.fill"
+                }
+                return nil
             }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("lab") }) {
-                return "testtube.2"
-            }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("book") }) {
-                return "book.fill"
-            }
-            return nil
         }
     }
 }
@@ -920,6 +969,8 @@ struct MapView: View {
 
     @State private var mapSearchText = ""
     @FocusState private var isMapSearchFocused: Bool
+    private let maxVisibleMapSearchResults = 5
+    private let mapSearchResultRowHeight: CGFloat = 56
 
     @State private var showDirectionsList = false
     @State private var activeNavigationRoute: NavigationRoute?
@@ -947,6 +998,7 @@ struct MapView: View {
     @State private var indoorNavDestinationFloorId = ""
     @State private var indoorNavigationError: String? = nil
     @State private var isRoutingFromEntrance = false
+    @State private var showEntrancePreviewInfo = false
     @State private var suppressBuildingFloorReset = false
     @State private var pendingRoomSelection: RoomSearchResult? = nil
     @State private var selectedOutdoorLocation: CampusLocation?
@@ -1022,6 +1074,20 @@ struct MapView: View {
 
     private var largeTextEnabled: Bool {
         profiles.first?.largeText ?? false
+    }
+
+    private var effectiveUserCoordinate: CLLocationCoordinate2D? {
+        if let snapped = snapManager.nearestNodeCoordinate,
+           snapManager.snappedFloorId == selectedFloorId {
+            return snapped
+        }
+        return locationManager.location?.coordinate
+    }
+
+    private var bottomTrailingButtonPadding: CGFloat {
+        guard !visibleFloors.isEmpty else { return 90 }
+        let floorStackHeight = CGFloat(46 * visibleFloors.count + 6)
+        return 40 + floorStackHeight + 16
     }
 
     // Fill each `coordinates` array with the polygon points for that lot.
@@ -1519,6 +1585,18 @@ struct MapView: View {
         name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    private func indoorBuilding(for location: CampusLocation) -> IndoorBuilding? {
+        // Outdoor name → indoor building name aliases. Some buildings appear under
+        // different names between the outdoor dataset and the indoor floor-stacks data.
+        let aliases: [String: String] = [
+            "strain science center": "strain hall",
+            "university center": "washburne hall (university center)"
+        ]
+        let outdoorKey = location.name.lowercased()
+        let indoorKey = aliases[outdoorKey] ?? outdoorKey
+        return indoorBuildings.first { $0.name.lowercased() == indoorKey }
+    }
+
     private func matchCampusLocation(for building: CampusBuilding) -> CampusLocation {
         // Try to match your rich local data first (best for sheet)
         if let match = campusLocations.first(where: { $0.name.caseInsensitiveCompare(building.name) == .orderedSame }) {
@@ -1620,6 +1698,10 @@ struct MapView: View {
         isRoutingFromEntrance = fromEntrance
         indoorCurrentStepIndex = 0
         indoorNavDestinationFloorId = floorId
+        selectedIndoorLocation = nil
+        if selectedFloorId != startFloor {
+            selectedFloorId = startFloor
+        }
     }
 
     private func endIndoorNavigation() {
@@ -1749,7 +1831,7 @@ struct MapView: View {
             locationsByFloor: indoorLocationsByFloor,
             selectedFloorId: selectedFloorId,
             selectedLocation: $selectedIndoorLocation,
-            userCoordinate: locationManager.location?.coordinate,
+            userCoordinate: effectiveUserCoordinate,
             outdoorLocations: displayedOutdoorLocations,
             parkingLots: parkingLots,
             isShowingParkingHighlights: isShowingParkingHighlights,
@@ -1773,7 +1855,8 @@ struct MapView: View {
                 if widthMeters >= 1200 {
                     selectedIndoorLocation = nil
                 }
-            }
+            },
+            selectedIndoorLocationId: selectedIndoorLocation?.id
         )
         .ignoresSafeArea()
         .task {
@@ -1901,15 +1984,15 @@ struct MapView: View {
                 .padding(.bottom, 40)
             }
         }
-        .overlay(alignment: .top) {
-            mapSearchBar
-        }
         .overlay(alignment: .topLeading) {
             if !indoorBuildings.isEmpty {
                 BuildingPicker(buildings: indoorBuildings, selection: $selectedBuildingId)
                     .padding(.leading, 12)
-                    .padding(.top, 60)
+                    .padding(.top, largeTextEnabled ? 90 : 60)
             }
+        }
+        .overlay(alignment: .top) {
+            mapSearchBar
         }
         .overlay(alignment: .top) {
             if isNavigating, let activeNavigationRoute {
@@ -1953,9 +2036,14 @@ struct MapView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if isRoutingFromEntrance {
-                            Image(systemName: "info.circle")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Button {
+                                showEntrancePreviewInfo = true
+                            } label: {
+                                Image(systemName: "info.circle")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     Text(step.instruction)
@@ -2026,8 +2114,8 @@ struct MapView: View {
                     .background(.ultraThinMaterial, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
+                .padding(.trailing, 12)
+                .padding(.bottom, bottomTrailingButtonPadding)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -2040,8 +2128,8 @@ struct MapView: View {
                         .padding()
                         .background(.ultraThinMaterial, in: Circle())
                 }
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
+                .padding(.trailing, 12)
+                .padding(.bottom, bottomTrailingButtonPadding)
             } else if isNavigatingIndoors {
                 Button {
                     showIndoorStepsList = true
@@ -2051,11 +2139,12 @@ struct MapView: View {
                         .padding()
                         .background(.ultraThinMaterial, in: Circle())
                 }
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
+                .padding(.trailing, 12)
+                .padding(.bottom, bottomTrailingButtonPadding)
             }
         }
         .sheet(item: $selectedOutdoorLocation) { location in
+            let matchedIndoorBuildingId = indoorBuilding(for: location)?.id
             LocationPreviewSheet(
                 location: location,
                 isFavorite: isFavorite(location),
@@ -2066,6 +2155,12 @@ struct MapView: View {
                 onDirectionsTapped: { tappedLocation in
                     Task {
                         await startDirections(to: tappedLocation)
+                    }
+                },
+                onShowIndoorMap: matchedIndoorBuildingId.map { buildingId in
+                    {
+                        selectedBuildingId = buildingId
+                        selectedOutdoorLocation = nil
                     }
                 }
             )
@@ -2119,6 +2214,11 @@ struct MapView: View {
         } message: {
             Text(indoorNavigationError ?? "")
         }
+        .alert("Preview from Entrance", isPresented: $showEntrancePreviewInfo) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("You're not near a building entrance yet. These directions are previewed starting from the main entrance — walk up to any entrance to get step-by-step guidance from where you are.")
+        }
     }
 
     private var visibleFloors: [IndoorFloor] {
@@ -2150,8 +2250,6 @@ struct MapView: View {
                 if aStarts != bStarts { return aStarts && !bStarts }
                 return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
-            .prefix(3)
-            .map { $0 }
     }
 
     private var mapFilteredRooms: [RoomSearchResult] {
@@ -2166,8 +2264,14 @@ struct MapView: View {
                 if aStarts != bStarts { return aStarts && !bStarts }
                 return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
-            .prefix(5)
-            .map { $0 }
+    }
+
+    private var totalMapFilteredResults: Int {
+        mapFilteredBuildings.count + mapFilteredRooms.count
+    }
+
+    private var mapSearchResultsMaxHeight: CGFloat {
+        CGFloat(min(totalMapFilteredResults, maxVisibleMapSearchResults)) * mapSearchResultRowHeight
     }
 
     @ViewBuilder
@@ -2192,60 +2296,63 @@ struct MapView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
 
                 if !mapFilteredBuildings.isEmpty || !mapFilteredRooms.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(mapFilteredBuildings) { building in
-                            Button {
-                                appState.selectedBuildingID = building.id
-                                mapSearchText = ""
-                                isMapSearchFocused = false
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "building.2")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(building.name).font(.subheadline)
-                                        Text("Building").font(.caption).foregroundStyle(.secondary)
+                    ScrollView(.vertical, showsIndicators: totalMapFilteredResults > maxVisibleMapSearchResults) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(mapFilteredBuildings) { building in
+                                Button {
+                                    appState.selectedBuildingID = building.id
+                                    mapSearchText = ""
+                                    isMapSearchFocused = false
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "building.2")
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 20)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(building.name).font(.subheadline)
+                                            Text("Building").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
                                     }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
+                                    .frame(minHeight: mapSearchResultRowHeight)
+                                    .contentShape(Rectangle())
+                                    .padding(.horizontal, 12)
                                 }
-                                .contentShape(Rectangle())
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 12)
+                                .buttonStyle(.plain)
+                                Divider()
                             }
-                            .buttonStyle(.plain)
-                            Divider()
-                        }
-                        ForEach(mapFilteredRooms) { room in
-                            Button {
-                                appState.selectedRoom = room
-                                mapSearchText = ""
-                                isMapSearchFocused = false
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "door.right.hand.open")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(room.name).font(.subheadline)
-                                        Text(room.buildingName).font(.caption).foregroundStyle(.secondary)
+                            ForEach(mapFilteredRooms) { room in
+                                Button {
+                                    appState.selectedRoom = room
+                                    mapSearchText = ""
+                                    isMapSearchFocused = false
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "door.right.hand.open")
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 20)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(room.name).font(.subheadline)
+                                            Text(room.buildingName).font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
                                     }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
+                                    .frame(minHeight: mapSearchResultRowHeight)
+                                    .contentShape(Rectangle())
+                                    .padding(.horizontal, 12)
                                 }
-                                .contentShape(Rectangle())
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 12)
+                                .buttonStyle(.plain)
+                                Divider()
                             }
-                            .buttonStyle(.plain)
-                            Divider()
                         }
                     }
+                    .frame(maxHeight: mapSearchResultsMaxHeight)
                     .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
                 }
@@ -2694,7 +2801,7 @@ private struct IndoorLocationDetailView: View {
             .navigationTitle("Details")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
+        .largeTextSize(largeTextEnabled, .accessibility2)
     }
 
     private func formatHours(_ entry: IndoorOpeningHours) -> String {

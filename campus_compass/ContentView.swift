@@ -1,6 +1,17 @@
 import SwiftUI
 import SwiftData
 
+extension View {
+    @ViewBuilder
+    func largeTextSize(_ enabled: Bool, _ size: DynamicTypeSize) -> some View {
+        if enabled {
+            self.dynamicTypeSize(size)
+        } else {
+            self
+        }
+    }
+}
+
 struct ContentView: View {
     @StateObject private var appState = AppState()
     @StateObject private var buildingStore = BuildingStore()
@@ -69,7 +80,7 @@ struct ContentView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(2)
             }
-            .dynamicTypeSize(profile.largeText ? .accessibility1 : .large)
+            .largeTextSize(profile.largeText, .accessibility1)
             .tint(.red)
             .opacity(showWelcome ? 0 : 1)
             .scaleEffect(showWelcome ? 0.98 : 1)
