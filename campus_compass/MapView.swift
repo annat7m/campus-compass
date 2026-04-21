@@ -947,6 +947,7 @@ struct MapView: View {
     @State private var indoorNavDestinationFloorId = ""
     @State private var indoorNavigationError: String? = nil
     @State private var isRoutingFromEntrance = false
+    @State private var showEntrancePreviewInfo = false
     @State private var suppressBuildingFloorReset = false
     @State private var pendingRoomSelection: RoomSearchResult? = nil
     @State private var selectedOutdoorLocation: CampusLocation?
@@ -1022,6 +1023,20 @@ struct MapView: View {
 
     private var largeTextEnabled: Bool {
         profiles.first?.largeText ?? false
+    }
+
+    private var effectiveUserCoordinate: CLLocationCoordinate2D? {
+        if let snapped = snapManager.nearestNodeCoordinate,
+           snapManager.snappedFloorId == selectedFloorId {
+            return snapped
+        }
+        return locationManager.location?.coordinate
+    }
+
+    private var bottomTrailingButtonPadding: CGFloat {
+        guard !visibleFloors.isEmpty else { return 90 }
+        let floorStackHeight = CGFloat(46 * visibleFloors.count + 6)
+        return 40 + floorStackHeight + 16
     }
 
     // Fill each `coordinates` array with the polygon points for that lot.
@@ -1620,6 +1635,10 @@ struct MapView: View {
         isRoutingFromEntrance = fromEntrance
         indoorCurrentStepIndex = 0
         indoorNavDestinationFloorId = floorId
+        selectedIndoorLocation = nil
+        if selectedFloorId != startFloor {
+            selectedFloorId = startFloor
+        }
     }
 
     private func endIndoorNavigation() {
@@ -1749,7 +1768,7 @@ struct MapView: View {
             locationsByFloor: indoorLocationsByFloor,
             selectedFloorId: selectedFloorId,
             selectedLocation: $selectedIndoorLocation,
-            userCoordinate: locationManager.location?.coordinate,
+            userCoordinate: effectiveUserCoordinate,
             outdoorLocations: displayedOutdoorLocations,
             parkingLots: parkingLots,
             isShowingParkingHighlights: isShowingParkingHighlights,
@@ -1898,7 +1917,7 @@ struct MapView: View {
                     FloorStack(floors: visibleFloors, selection: $selectedFloorId)
                 }
                 .padding(.trailing, 12)
-                .padding(.bottom, largeTextEnabled && isNavigatingIndoors ? 170 : 40)
+                .padding(.bottom, 40)
             }
         }
         .overlay(alignment: .top) {
@@ -1953,9 +1972,14 @@ struct MapView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if isRoutingFromEntrance {
-                            Image(systemName: "info.circle")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            Button {
+                                showEntrancePreviewInfo = true
+                            } label: {
+                                Image(systemName: "info.circle")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     Text(step.instruction)
@@ -2026,8 +2050,8 @@ struct MapView: View {
                     .background(.ultraThinMaterial, in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
+                .padding(.trailing, 12)
+                .padding(.bottom, bottomTrailingButtonPadding)
             }
         }
         .overlay(alignment: .bottomTrailing) {
@@ -2040,8 +2064,8 @@ struct MapView: View {
                         .padding()
                         .background(.ultraThinMaterial, in: Circle())
                 }
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
+                .padding(.trailing, 12)
+                .padding(.bottom, bottomTrailingButtonPadding)
             } else if isNavigatingIndoors {
                 Button {
                     showIndoorStepsList = true
@@ -2051,8 +2075,8 @@ struct MapView: View {
                         .padding()
                         .background(.ultraThinMaterial, in: Circle())
                 }
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
+                .padding(.trailing, 12)
+                .padding(.bottom, bottomTrailingButtonPadding)
             }
         }
         .sheet(item: $selectedOutdoorLocation) { location in
@@ -2118,6 +2142,11 @@ struct MapView: View {
             Button("OK", role: .cancel) { indoorNavigationError = nil }
         } message: {
             Text(indoorNavigationError ?? "")
+        }
+        .alert("Preview from Entrance", isPresented: $showEntrancePreviewInfo) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("You're not near a building entrance yet. These directions are previewed starting from the main entrance — walk up to any entrance to get step-by-step guidance from where you are.")
         }
     }
 
