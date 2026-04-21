@@ -93,7 +93,7 @@ struct LocationPreviewSheet: View {
         .padding(.bottom, 20)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
+        .largeTextSize(largeTextEnabled, .accessibility2)
     }
 }
 
@@ -157,7 +157,7 @@ struct NavigationStepsView: View {
             .navigationTitle("Turn-by-Turn")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
+        .largeTextSize(largeTextEnabled, .accessibility2)
     }
 
     private func stepDistanceText(_ meters: CLLocationDistance) -> String {
@@ -1898,7 +1898,7 @@ struct MapView: View {
                     FloorStack(floors: visibleFloors, selection: $selectedFloorId)
                 }
                 .padding(.trailing, 12)
-                .padding(.bottom, 40)
+                .padding(.bottom, largeTextEnabled && isNavigatingIndoors ? 170 : 40)
             }
         }
         .overlay(alignment: .top) {
@@ -1908,7 +1908,7 @@ struct MapView: View {
             if !indoorBuildings.isEmpty {
                 BuildingPicker(buildings: indoorBuildings, selection: $selectedBuildingId)
                     .padding(.leading, 12)
-                    .padding(.top, 60)
+                    .padding(.top, largeTextEnabled ? 90 : 60)
             }
         }
         .overlay(alignment: .top) {
@@ -2694,7 +2694,7 @@ private struct IndoorLocationDetailView: View {
             .navigationTitle("Details")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
+        .largeTextSize(largeTextEnabled, .accessibility2)
     }
 
     private func formatHours(_ entry: IndoorOpeningHours) -> String {
