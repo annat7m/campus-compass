@@ -54,6 +54,12 @@ enum RoomUse: String {
     case elevator
     case bathroom
     case classroom
+    case laboratory
+    case conferenceRoom
+    case office
+    case lounge
+    case gym
+    case foodAndDrink
 }
 
 struct IndoorShape: Identifiable {
@@ -69,6 +75,12 @@ enum IndoorLabelKind {
     case area
     case bathroom
     case classroom
+    case laboratory
+    case conferenceRoom
+    case office
+    case lounge
+    case gym
+    case foodAndDrink
     case stairs
     case elevator
     case annotation
@@ -92,6 +104,7 @@ struct IndoorLocation: Identifiable {
     let use: RoomUse?
     let labelKind: IndoorLabelKind
     let isArea: Bool
+    let geometryId: String   // anchor geometry id, used for map polygon highlighting
 }
 
 struct IndoorOpeningHours: Identifiable {
@@ -111,18 +124,26 @@ struct IndoorNode: Identifiable {
     let coordinate: CLLocationCoordinate2D
 }
 
+struct IndoorEntrance {
+    let buildingId: String
+    let floorId: String
+    let coordinate: CLLocationCoordinate2D
+}
+
 struct IndoorDataset {
     let buildings: [IndoorBuilding]
     let shapesByFloor: [String: [IndoorShape]]
     let labelsByFloor: [String: [IndoorLabel]]
     let locationsByFloor: [String: [IndoorLocation]]
     let nodesByFloor: [String: [IndoorNode]]
+    let entrances: [IndoorEntrance]
 
     static let empty = IndoorDataset(buildings: [],
                                      shapesByFloor: [:],
                                      labelsByFloor: [:],
                                      locationsByFloor: [:],
-                                     nodesByFloor: [:])
+                                     nodesByFloor: [:],
+                                     entrances: [])
 }
 
 enum IndoorDataLoader {
@@ -191,6 +212,9 @@ enum IndoorDataLoader {
                                              geometryKindsByFloor: geometryKindsByFloor,
                                              roomUsesByGeometryId: roomUsesByGeometryId)
         let nodesByFloor = loadNodes(from: baseURL, decoder: decoder)
+        let entrances = loadEntrances(from: baseURL,
+                                      floorStacks: floorStacks,
+                                      geometryCentersByFloor: geometryCentersByFloor)
 
         var buildings: [IndoorBuilding] = []
         if !floorStacks.isEmpty {
@@ -227,7 +251,8 @@ enum IndoorDataLoader {
                              shapesByFloor: shapesByFloor,
                              labelsByFloor: labelsByFloor,
                              locationsByFloor: locationsByFloor,
-                             nodesByFloor: nodesByFloor)
+                             nodesByFloor: nodesByFloor,
+                             entrances: entrances)
     }
 
     private static func loadFloorStacks(from baseURL: URL) -> [FloorStackDTO] {
@@ -527,7 +552,8 @@ enum IndoorDataLoader {
                     coordinate: coordinate,
                     use: use,
                     labelKind: labelKind,
-                    isArea: isArea
+                    isArea: isArea,
+                    geometryId: anchor.geometryId
                 )
                 locationsByFloor[anchor.floorId, default: []].append(indoorLocation)
             }
@@ -579,7 +605,8 @@ enum IndoorDataLoader {
                     coordinate: coordinate,
                     use: use,
                     labelKind: use == .stairs ? .stairs : .elevator,
-                    isArea: false
+                    isArea: false,
+                    geometryId: endpoint.geometryId
                 )
                 locationsByFloor[floorId, default: []].append(location)
             }
@@ -749,6 +776,12 @@ enum IndoorDataLoader {
         switch use {
         case .bathroom: return .bathroom
         case .classroom: return .classroom
+        case .laboratory: return .laboratory
+        case .conferenceRoom: return .conferenceRoom
+        case .office: return .office
+        case .lounge: return .lounge
+        case .gym: return .gym
+        case .foodAndDrink: return .foodAndDrink
         case .stairs: return .stairs
         case .elevator: return .elevator
         case .none:
@@ -764,6 +797,29 @@ enum IndoorDataLoader {
             }
             return .room
         }
+    }
+
+    private static func loadEntrances(from baseURL: URL,
+                                      floorStacks: [FloorStackDTO],
+                                      geometryCentersByFloor: [String: [String: CLLocationCoordinate2D]]) -> [IndoorEntrance] {
+        let entranceBase = baseURL.appendingPathComponent("entrance-aesthetic")
+        var result: [IndoorEntrance] = []
+
+        for stack in floorStacks {
+            for floorId in stack.floors {
+                let url = entranceBase.appendingPathComponent("\(floorId).json")
+                guard let data = try? Data(contentsOf: url),
+                      let entries = try? JSONDecoder().decode([EntranceAestheticDTO].self, from: data),
+                      let centers = geometryCentersByFloor[floorId] else { continue }
+                for entry in entries {
+                    guard let coordinate = centers[entry.geometryId] else { continue }
+                    result.append(IndoorEntrance(buildingId: stack.id,
+                                                 floorId: floorId,
+                                                 coordinate: coordinate))
+                }
+            }
+        }
+        return result
     }
 
     private static func loadConnectionUses(from url: URL) -> [String: RoomUse] {
@@ -828,9 +884,26 @@ enum IndoorDataLoader {
         if combined.contains("restroom") || combined.contains("bathroom") || combined.contains("toilet") {
             return .bathroom
         }
-
-        if combined.contains("classroom") || combined.contains("conference") || combined.contains("lab") {
+        if combined.contains("laboratory") || combined.contains("lab") {
+            return .laboratory
+        }
+        if combined.contains("conference") || combined.contains("meeting room") {
+            return .conferenceRoom
+        }
+        if combined.contains("classroom") {
             return .classroom
+        }
+        if combined.contains("office") {
+            return .office
+        }
+        if combined.contains("lounge") {
+            return .lounge
+        }
+        if combined.contains("gym") || combined.contains("fitness") {
+            return .gym
+        }
+        if combined.contains("cafe") || combined.contains("food") || combined.contains("dining") || combined.contains("coffee") {
+            return .foodAndDrink
         }
 
         return nil
@@ -843,10 +916,16 @@ enum IndoorDataLoader {
 
     private static func roomUsePriority(_ use: RoomUse) -> Int {
         switch use {
-        case .elevator: return 4
-        case .stairs: return 3
-        case .bathroom: return 2
-        case .classroom: return 1
+        case .elevator: return 9
+        case .stairs: return 8
+        case .bathroom: return 7
+        case .laboratory: return 6
+        case .conferenceRoom: return 5
+        case .classroom: return 4
+        case .office: return 3
+        case .gym: return 2
+        case .foodAndDrink: return 2
+        case .lounge: return 1
         }
     }
 }
