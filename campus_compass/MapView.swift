@@ -940,6 +940,8 @@ struct MapView: View {
 
     @State private var mapSearchText = ""
     @FocusState private var isMapSearchFocused: Bool
+    private let maxVisibleMapSearchResults = 5
+    private let mapSearchResultRowHeight: CGFloat = 56
 
     @State private var showDirectionsList = false
     @State private var activeNavigationRoute: NavigationRoute?
@@ -1952,15 +1954,15 @@ struct MapView: View {
                 .padding(.bottom, 40)
             }
         }
-        .overlay(alignment: .top) {
-            mapSearchBar
-        }
         .overlay(alignment: .topLeading) {
             if !indoorBuildings.isEmpty {
                 BuildingPicker(buildings: indoorBuildings, selection: $selectedBuildingId)
                     .padding(.leading, 12)
                     .padding(.top, largeTextEnabled ? 90 : 60)
             }
+        }
+        .overlay(alignment: .top) {
+            mapSearchBar
         }
         .overlay(alignment: .top) {
             if isNavigating, let activeNavigationRoute {
@@ -2218,8 +2220,6 @@ struct MapView: View {
                 if aStarts != bStarts { return aStarts && !bStarts }
                 return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
-            .prefix(3)
-            .map { $0 }
     }
 
     private var mapFilteredRooms: [RoomSearchResult] {
@@ -2234,8 +2234,14 @@ struct MapView: View {
                 if aStarts != bStarts { return aStarts && !bStarts }
                 return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
-            .prefix(5)
-            .map { $0 }
+    }
+
+    private var totalMapFilteredResults: Int {
+        mapFilteredBuildings.count + mapFilteredRooms.count
+    }
+
+    private var mapSearchResultsMaxHeight: CGFloat {
+        CGFloat(min(totalMapFilteredResults, maxVisibleMapSearchResults)) * mapSearchResultRowHeight
     }
 
     @ViewBuilder
@@ -2260,60 +2266,63 @@ struct MapView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
 
                 if !mapFilteredBuildings.isEmpty || !mapFilteredRooms.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(mapFilteredBuildings) { building in
-                            Button {
-                                appState.selectedBuildingID = building.id
-                                mapSearchText = ""
-                                isMapSearchFocused = false
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "building.2")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(building.name).font(.subheadline)
-                                        Text("Building").font(.caption).foregroundStyle(.secondary)
+                    ScrollView(.vertical, showsIndicators: totalMapFilteredResults > maxVisibleMapSearchResults) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(mapFilteredBuildings) { building in
+                                Button {
+                                    appState.selectedBuildingID = building.id
+                                    mapSearchText = ""
+                                    isMapSearchFocused = false
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "building.2")
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 20)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(building.name).font(.subheadline)
+                                            Text("Building").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
                                     }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
+                                    .frame(minHeight: mapSearchResultRowHeight)
+                                    .contentShape(Rectangle())
+                                    .padding(.horizontal, 12)
                                 }
-                                .contentShape(Rectangle())
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 12)
+                                .buttonStyle(.plain)
+                                Divider()
                             }
-                            .buttonStyle(.plain)
-                            Divider()
-                        }
-                        ForEach(mapFilteredRooms) { room in
-                            Button {
-                                appState.selectedRoom = room
-                                mapSearchText = ""
-                                isMapSearchFocused = false
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "door.right.hand.open")
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 20)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(room.name).font(.subheadline)
-                                        Text(room.buildingName).font(.caption).foregroundStyle(.secondary)
+                            ForEach(mapFilteredRooms) { room in
+                                Button {
+                                    appState.selectedRoom = room
+                                    mapSearchText = ""
+                                    isMapSearchFocused = false
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "door.right.hand.open")
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 20)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(room.name).font(.subheadline)
+                                            Text(room.buildingName).font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
                                     }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
+                                    .frame(minHeight: mapSearchResultRowHeight)
+                                    .contentShape(Rectangle())
+                                    .padding(.horizontal, 12)
                                 }
-                                .contentShape(Rectangle())
-                                .padding(.vertical, 10)
-                                .padding(.horizontal, 12)
+                                .buttonStyle(.plain)
+                                Divider()
                             }
-                            .buttonStyle(.plain)
-                            Divider()
                         }
                     }
+                    .frame(maxHeight: mapSearchResultsMaxHeight)
                     .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 2)
                 }

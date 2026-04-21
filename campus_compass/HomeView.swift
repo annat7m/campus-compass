@@ -215,6 +215,8 @@ struct SearchBarView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var buildingStore: BuildingStore
     @EnvironmentObject private var roomSearchStore: RoomSearchStore
+    private let maxVisibleResults = 5
+    private let searchResultRowHeight: CGFloat = 56
 
     private var filteredBuildings: [CampusBuilding] {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -230,8 +232,6 @@ struct SearchBarView: View {
                 if aStarts != bStarts { return aStarts && !bStarts }
                 return aName.localizedCaseInsensitiveCompare(bName) == .orderedAscending
             }
-            .prefix(3)
-            .map { $0 }
     }
 
     private var filteredRooms: [RoomSearchResult] {
@@ -246,8 +246,14 @@ struct SearchBarView: View {
                 if aStarts != bStarts { return aStarts && !bStarts }
                 return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
             }
-            .prefix(5)
-            .map { $0 }
+    }
+
+    private var totalFilteredResults: Int {
+        filteredBuildings.count + filteredRooms.count
+    }
+
+    private var searchResultsMaxHeight: CGFloat {
+        CGFloat(min(totalFilteredResults, maxVisibleResults)) * searchResultRowHeight
     }
 
     var body: some View {
@@ -280,71 +286,74 @@ struct SearchBarView: View {
             .frame(maxWidth: .infinity)
 
             if !filteredBuildings.isEmpty || !filteredRooms.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(filteredBuildings) { building in
-                        Button {
-                            appState.selectedBuildingID = building.id
-                            appState.selectedTab = 1
-                            searchText = ""
-                            isFocused = false
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "building.2")
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 20)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(building.name)
-                                        .font(.custom("Avenir Next", size: 15))
-                                        .foregroundColor(.primary)
-                                    Text("Building")
-                                        .font(.custom("Avenir Next", size: 12))
+                ScrollView(.vertical, showsIndicators: totalFilteredResults > maxVisibleResults) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredBuildings) { building in
+                            Button {
+                                appState.selectedBuildingID = building.id
+                                appState.selectedTab = 1
+                                searchText = ""
+                                isFocused = false
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "building.2")
                                         .foregroundColor(.secondary)
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(building.name)
+                                            .font(.custom("Avenir Next", size: 15))
+                                            .foregroundColor(.primary)
+                                        Text("Building")
+                                            .font(.custom("Avenir Next", size: 12))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 12))
                                 }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
-                                    .font(.system(size: 12))
+                                .frame(minHeight: searchResultRowHeight)
+                                .contentShape(Rectangle())
+                                .padding(.horizontal, 12)
                             }
-                            .contentShape(Rectangle())
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 12)
+                            .buttonStyle(.plain)
+                            Divider()
                         }
-                        .buttonStyle(.plain)
-                        Divider()
-                    }
 
-                    ForEach(filteredRooms) { room in
-                        Button {
-                            appState.selectedRoom = room
-                            appState.selectedTab = 1
-                            searchText = ""
-                            isFocused = false
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "door.right.hand.open")
-                                    .foregroundColor(.secondary)
-                                    .frame(width: 20)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(room.name)
-                                        .font(.custom("Avenir Next", size: 15))
-                                        .foregroundColor(.primary)
-                                    Text(room.buildingName)
-                                        .font(.custom("Avenir Next", size: 12))
+                        ForEach(filteredRooms) { room in
+                            Button {
+                                appState.selectedRoom = room
+                                appState.selectedTab = 1
+                                searchText = ""
+                                isFocused = false
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "door.right.hand.open")
                                         .foregroundColor(.secondary)
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(room.name)
+                                            .font(.custom("Avenir Next", size: 15))
+                                            .foregroundColor(.primary)
+                                        Text(room.buildingName)
+                                            .font(.custom("Avenir Next", size: 12))
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 12))
                                 }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundColor(.gray)
-                                    .font(.system(size: 12))
+                                .frame(minHeight: searchResultRowHeight)
+                                .contentShape(Rectangle())
+                                .padding(.horizontal, 12)
                             }
-                            .contentShape(Rectangle())
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 12)
+                            .buttonStyle(.plain)
+                            Divider()
                         }
-                        .buttonStyle(.plain)
-                        Divider()
                     }
                 }
+                .frame(maxHeight: searchResultsMaxHeight)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
                         .fill(Color(.systemBackground))
