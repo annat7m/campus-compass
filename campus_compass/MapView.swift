@@ -10,87 +10,162 @@ import MapKit
 import CoreLocation
 import SwiftData
 
+private struct MarkerPreviewTheme {
+    let scheme: ColorScheme
+
+    var accent: Color { Color(red: 0.88, green: 0.20, blue: 0.25) }
+    var title: Color { scheme == .dark ? .white : Color(red: 0.14, green: 0.15, blue: 0.17) }
+    var secondary: Color { scheme == .dark ? .white.opacity(0.72) : .secondary }
+    var card: Color { scheme == .dark ? Color.white.opacity(0.10) : .white.opacity(0.92) }
+    var border: Color { scheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06) }
+    var shadow: Color { Color.black.opacity(scheme == .dark ? 0.34 : 0.12) }
+    var background: [Color] {
+        scheme == .dark
+            ? [Color(red: 0.07, green: 0.08, blue: 0.10), Color(red: 0.12, green: 0.13, blue: 0.16)]
+            : [Color(red: 0.97, green: 0.97, blue: 0.98), Color(red: 0.93, green: 0.94, blue: 0.96)]
+    }
+}
+
+private struct MarkerPreviewCard<Content: View>: View {
+    let theme: MarkerPreviewTheme
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(theme.card)
+                .shadow(color: theme.shadow, radius: 14, x: 0, y: 8)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(theme.border, lineWidth: 1)
+        )
+    }
+}
+
 struct LocationPreviewSheet: View {
     let location: CampusLocation
     let isFavorite: Bool
     let largeTextEnabled: Bool
     let onFavoriteTapped: (CampusLocation) -> Void
     let onDirectionsTapped: (CampusLocation) -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: MarkerPreviewTheme {
+        MarkerPreviewTheme(scheme: colorScheme)
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(location.name)
-                        .font(.title2)
-                        .bold()
-                    Spacer()
-                    Button {
-                        onFavoriteTapped(location)
-                    } label: {
-                        Image(systemName: isFavorite ? "star.fill" : "star")
-                            .font(.title3.weight(.semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(isFavorite ? "Remove Favorite" : "Save Favorite")
-                }
+        ZStack {
+            LinearGradient(colors: theme.background, startPoint: .topLeading, endPoint: .bottomTrailing)
+                .ignoresSafeArea()
+                .overlay(
+                    Circle()
+                        .fill(theme.accent.opacity(colorScheme == .dark ? 0.18 : 0.12))
+                        .frame(width: 220, height: 220)
+                        .blur(radius: 34)
+                        .offset(x: 140, y: -210)
+                )
 
-                if let desc = location.shortDescription {
-                    Text(desc)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    MarkerPreviewCard(theme: theme) {
+                        HStack(alignment: .top, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(location.name)
+                                    .font(.custom("Avenir Next", size: 25, relativeTo: .title2).weight(.bold))
+                                    .foregroundStyle(theme.title)
 
-                Button {
-                    onDirectionsTapped(location)
-                } label: {
-                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                }
-                .buttonStyle(.borderedProminent)
+                                if let desc = location.shortDescription {
+                                    Text(desc)
+                                        .font(.subheadline)
+                                        .foregroundStyle(theme.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
 
-                Divider()
+                            Spacer(minLength: 8)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    if let floors = location.floors {
-                        InfoRow(title: "Floors", value: "\(floors)")
-                    }
-
-                    if let offices = location.studentServiceOffices, !offices.isEmpty {
-                        InfoRow(
-                            title: "Student Services",
-                            value: offices.joined(separator: ", ")
-                        )
-                    }
-
-                    if let accessibility = location.accessibilityInfo {
-                        InfoRow(title: "Accessibility", value: accessibility)
-                    }
-
-                    if let hours = location.hoursOpen {
-                        InfoRow(title: "Hours", value: hours)
-                    }
-
-                    if let url = location.websiteURL {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Website")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Link(url.absoluteString, destination: url)
-                                .font(.body)
+                            Button {
+                                onFavoriteTapped(location)
+                            } label: {
+                                Image(systemName: isFavorite ? "star.fill" : "star")
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(isFavorite ? theme.accent : theme.secondary)
+                                    .frame(width: 40, height: 40)
+                                    .background(
+                                        Circle()
+                                            .fill(theme.card.opacity(colorScheme == .dark ? 1 : 0.9))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(isFavorite ? "Remove Favorite" : "Save Favorite")
                         }
                     }
 
-                    if let contact = location.contactInfo {
-                        InfoRow(title: "Contact", value: contact)
+                    Button {
+                        onDirectionsTapped(location)
+                    } label: {
+                        Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .foregroundStyle(.white)
+                            .background(theme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .shadow(color: theme.accent.opacity(0.3), radius: 10, x: 0, y: 6)
+                    }
+                    .buttonStyle(.plain)
+
+                    MarkerPreviewCard(theme: theme) {
+                        if let floors = location.floors {
+                            InfoRow(title: "Floors", value: "\(floors)", secondaryColor: theme.secondary)
+                        }
+
+                        if let offices = location.studentServiceOffices, !offices.isEmpty {
+                            InfoRow(
+                                title: "Student Services",
+                                value: offices.joined(separator: ", "),
+                                secondaryColor: theme.secondary
+                            )
+                        }
+
+                        if let accessibility = location.accessibilityInfo {
+                            InfoRow(title: "Accessibility", value: accessibility, secondaryColor: theme.secondary)
+                        }
+
+                        if let hours = location.hoursOpen {
+                            InfoRow(title: "Hours", value: hours, secondaryColor: theme.secondary)
+                        }
+
+                        if let url = location.websiteURL {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Website")
+                                    .font(.caption)
+                                    .foregroundStyle(theme.secondary)
+
+                                Link(url.absoluteString, destination: url)
+                                    .font(.body)
+                                    .foregroundStyle(theme.accent)
+                                    .lineLimit(2)
+                                    .truncationMode(.middle)
+                            }
+                        }
+
+                        if let contact = location.contactInfo {
+                            InfoRow(title: "Contact", value: contact, secondaryColor: theme.secondary)
+                        }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 24)
-        .padding(.bottom, 20)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
@@ -100,12 +175,13 @@ struct LocationPreviewSheet: View {
 private struct InfoRow: View {
     let title: String
     let value: String
+    var secondaryColor: Color = .secondary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(secondaryColor)
             Text(value)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
@@ -252,6 +328,30 @@ private struct ParkingLot: Identifiable {
     var polygon: MKPolygon? {
         guard coordinates.count >= 3 else { return nil }
         return MKPolygon(coordinates: coordinates, count: coordinates.count)
+    }
+}
+
+private enum ParkingLotCategory: String, CaseIterable, Hashable {
+    case studentResident
+    case openPermit
+
+    var title: String {
+        switch self {
+        case .studentResident: return "Resident Parking"
+        case .openPermit: return "Open Permit"
+        }
+    }
+}
+
+private enum ParkingFilterOption: Hashable {
+    case allLots
+    case category(ParkingLotCategory)
+
+    var title: String {
+        switch self {
+        case .allLots: return "All Lots"
+        case .category(let category): return category.title
+        }
     }
 }
 
@@ -960,6 +1060,8 @@ struct MapView: View {
     @State private var selectedIndoorLocation: IndoorLocation?
     @State private var detailDetent: PresentationDetent = .height(220)
     @State private var isShowingParkingHighlights = false
+    @State private var selectedParkingFilters: Set<ParkingFilterOption> = [.allLots]
+    @State private var isParkingFilterExpanded = false
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 45.521, longitude: -123.108),
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
@@ -968,6 +1070,21 @@ struct MapView: View {
 
     private let graphStepArrivalThreshold: CLLocationDistance = 12
     private let applePreRouteTriggerDistance: CLLocationDistance = 40
+    private let defaultParkingCategories: Set<ParkingLotCategory> = Set(ParkingLotCategory.allCases)
+    // Fill this mapping once final lot category assignments are confirmed.
+    // Lots not listed here will temporarily appear in both filter categories.
+    private let parkingLotCategoriesByID: [String: Set<ParkingLotCategory>] = [
+        "lot-d-cascade-back": [.openPermit],
+        "lot-e-1-cascade-front": [.studentResident],
+        "lot-e-2-cascade-front": [.studentResident],
+        "lot-g-walter": [.openPermit],
+        "lot-k-gilbert": [.studentResident],
+        "lot-m-stollar": [.openPermit],
+        "lot-c-taylor-meade": [.openPermit],
+        "lot-h-drake-house": [.openPermit],
+        "lot-p-main-street": [.studentResident, .openPermit],
+        "lot-I-Admissions": [.studentResident, .openPermit],
+    ]
     
     private var routeSteps: [NavigationStep] {
         activeNavigationRoute?.steps ?? []
@@ -1168,7 +1285,7 @@ struct MapView: View {
     ]
 
     private var parkingFocusRegion: MKCoordinateRegion? {
-        let polygons = parkingLots.compactMap(\.polygon)
+        let polygons = filteredParkingLots.compactMap(\.polygon)
         guard !polygons.isEmpty else { return nil }
 
         var combinedRect = polygons
@@ -1191,6 +1308,26 @@ struct MapView: View {
             dy: -(combinedRect.size.height * 0.20)
         )
         return MKCoordinateRegion(padded)
+    }
+
+    private var filteredParkingLots: [ParkingLot] {
+        if selectedParkingFilters.contains(.allLots) || selectedParkingFilters.isEmpty {
+            return parkingLots
+        }
+
+        let selectedCategories = Set(selectedParkingFilters.compactMap { option -> ParkingLotCategory? in
+            if case .category(let category) = option {
+                return category
+            }
+            return nil
+        })
+
+        guard !selectedCategories.isEmpty else { return parkingLots }
+
+        return parkingLots.filter { lot in
+            let categories = parkingLotCategoriesByID[lot.id] ?? defaultParkingCategories
+            return !categories.isDisjoint(with: selectedCategories)
+        }
     }
     
     let campusLocations: [CampusLocation] = [
@@ -1737,10 +1874,7 @@ struct MapView: View {
             focusedRegion = MKCoordinateRegion(padded)
         }
     }
-    
-    
-    
-    var body: some View {
+    private var mapSurface: some View {
         MKMapViewRepresentable(
             region: $mapRegion,
             focusedRegion: focusedRegion,
@@ -1751,374 +1885,413 @@ struct MapView: View {
             selectedLocation: $selectedIndoorLocation,
             userCoordinate: locationManager.location?.coordinate,
             outdoorLocations: displayedOutdoorLocations,
-            parkingLots: parkingLots,
+            parkingLots: filteredParkingLots,
             isShowingParkingHighlights: isShowingParkingHighlights,
             routePolyline: displayedRoutePolyline,
-            onOutdoorSelection: { location in
+            onOutdoorSelection: handleOutdoorSelection(_:),
+            onRegionChange: handleMapRegionChange(_:)
+        )
+    }
+
+    private func handleOutdoorSelection(_ location: CampusLocation) {
+        isShowingParkingHighlights = false
+        selectedIndoorLocation = nil
+        selectedOutdoorLocation = location
+    }
+
+    private func handleMapRegionChange(_ newRegion: MKCoordinateRegion) {
+        let halfSpan = newRegion.span.longitudeDelta / 2
+        let left = CLLocationCoordinate2D(
+            latitude: newRegion.center.latitude,
+            longitude: newRegion.center.longitude - halfSpan
+        )
+        let right = CLLocationCoordinate2D(
+            latitude: newRegion.center.latitude,
+            longitude: newRegion.center.longitude + halfSpan
+        )
+        let widthMeters = MKMapPoint(left).distance(to: MKMapPoint(right))
+        if widthMeters >= 1200 {
+            selectedIndoorLocation = nil
+        }
+    }
+
+    private var mapWithLifecycle: some View {
+        mapSurface
+            .ignoresSafeArea()
+            .task {
+                guard indoorBuildings.isEmpty else { return }
+                let data = IndoorDataLoader.loadCampusIndoorData()
+                indoorBuildings = data.buildings
+                indoorShapesByFloor = data.shapesByFloor
+                indoorLabelsByFloor = data.labelsByFloor
+                indoorLocationsByFloor = data.locationsByFloor
+                indoorNodesByFloor = data.nodesByFloor
+                indoorEntrances = data.entrances
+                outdoorGraphDataset = OutdoorDataLoader.loadCampusOutdoorData()
+                syncSelection(with: data.buildings)
+                if let baseURL = Bundle.main.resourceURL?.appendingPathComponent("CampusIndoorData") {
+                    indoorRoutingGraph = IndoorRoutingLoader.load(from: baseURL)
+                }
+                if let pending = pendingRoomSelection {
+                    pendingRoomSelection = nil
+                    applyRoomSelection(pending)
+                    appState.selectedRoom = nil
+                }
+            }
+            .onAppear {
+                locationManager.requestPermissionAndStart()
+            }
+            .onReceive(locationManager.$location) { location in
+                guard let location else { return }
+
+                if !hasCenteredOnUser {
+                    hasCenteredOnUser = true
+                    focusedRegion = MKCoordinateRegion(
+                        center: location.coordinate,
+                        span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
+                    )
+                }
+
+                if !indoorEntrances.isEmpty {
+                    snapManager.update(userLocation: location,
+                                       entrances: indoorEntrances,
+                                       nodesByFloor: indoorNodesByFloor)
+                }
+
+                maybeSwitchFromAppleToCampusGraph(using: location)
+                updateNavigationProgress(using: location)
+
+                if isShowingParkingHighlights,
+                   shouldRefocusParkingWhenLocationAvailable,
+                   focusParkingHighlightsIncludingUser() {
+                    shouldRefocusParkingWhenLocationAvailable = false
+                }
+            }
+            .onChange(of: appState.selectedBuildingID) { _, newID in
+                guard let newID else { return }
+                guard let building = buildingStore.buildings.first(where: { $0.id == newID }) else { return }
+
+                let resolvedDestination = resolveOutdoorDestination(for: building)
                 isShowingParkingHighlights = false
                 selectedIndoorLocation = nil
-                selectedOutdoorLocation = location
-            },
-            onRegionChange: { newRegion in
-                let halfSpan = newRegion.span.longitudeDelta / 2
-                let left = CLLocationCoordinate2D(
-                    latitude: newRegion.center.latitude,
-                    longitude: newRegion.center.longitude - halfSpan
+                selectedOutdoorLocation = resolvedDestination.location
+                focusedRegion = MKCoordinateRegion(
+                    center: resolvedDestination.focusCoordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
                 )
-                let right = CLLocationCoordinate2D(
-                    latitude: newRegion.center.latitude,
-                    longitude: newRegion.center.longitude + halfSpan
-                )
-                let widthMeters = MKMapPoint(left).distance(to: MKMapPoint(right))
-                if widthMeters >= 1200 {
+            }
+            .onChange(of: appState.outdoorLocationSelectionRequestID) { _, _ in
+                guard let requestedName = appState.selectedOutdoorLocationName else { return }
+                focusOutdoorLocationPreview(named: requestedName)
+            }
+            .onChange(of: appState.parkingHighlightRequestID) { _, _ in
+                isShowingParkingHighlights = true
+                selectedParkingFilters = [.allLots]
+                isParkingFilterExpanded = false
+                selectedIndoorLocation = nil
+                selectedOutdoorLocation = nil
+                shouldRefocusParkingWhenLocationAvailable = !focusParkingHighlightsIncludingUser()
+            }
+            .onChange(of: selectedParkingFilters) { _, _ in
+                guard isShowingParkingHighlights else { return }
+                _ = focusParkingHighlightsIncludingUser()
+            }
+            .onChange(of: selectedBuildingId) { _, newValue in
+                if suppressBuildingFloorReset {
+                    suppressBuildingFloorReset = false
+                    return
+                }
+                guard let building = indoorBuildings.first(where: { $0.id == newValue }) else { return }
+                guard !building.floors.isEmpty else {
+                    selectedFloorId = ""
+                    return
+                }
+                let defaultId = building.floors.first { $0.id == building.defaultFloorId }?.id
+                    ?? building.floors.first?.id ?? ""
+                if !defaultId.isEmpty {
+                    selectedFloorId = defaultId
+                    focusOnBuilding(floorId: defaultId)
+                }
+            }
+            .onChange(of: snapManager.snappedBuildingId) { _, newBuildingId in
+                guard let newBuildingId, selectedBuildingId != newBuildingId else { return }
+                selectedBuildingId = newBuildingId
+            }
+            .onChange(of: selectedIndoorLocation?.id) { _, newValue in
+                if newValue != nil {
+                    isShowingParkingHighlights = false
+                    selectedOutdoorLocation = nil
+                    detailDetent = .height(220)
+                }
+            }
+            .onChange(of: selectedOutdoorLocation?.id) { _, newValue in
+                if newValue != nil {
+                    isShowingParkingHighlights = false
                     selectedIndoorLocation = nil
                 }
             }
-        )
-        .ignoresSafeArea()
-        .task {
-            guard indoorBuildings.isEmpty else { return }
-            let data = IndoorDataLoader.loadCampusIndoorData()
-            indoorBuildings = data.buildings
-            indoorShapesByFloor = data.shapesByFloor
-            indoorLabelsByFloor = data.labelsByFloor
-            indoorLocationsByFloor = data.locationsByFloor
-            indoorNodesByFloor = data.nodesByFloor
-            indoorEntrances = data.entrances
-            outdoorGraphDataset = OutdoorDataLoader.loadCampusOutdoorData()
-            syncSelection(with: data.buildings)
-            if let baseURL = Bundle.main.resourceURL?.appendingPathComponent("CampusIndoorData") {
-                indoorRoutingGraph = IndoorRoutingLoader.load(from: baseURL)
-            }
-            if let pending = pendingRoomSelection {
-                pendingRoomSelection = nil
-                applyRoomSelection(pending)
+            .onChange(of: appState.selectedRoom) { _, room in
+                guard let room else { return }
+                guard !indoorBuildings.isEmpty else {
+                    pendingRoomSelection = room
+                    return
+                }
+                applyRoomSelection(room)
                 appState.selectedRoom = nil
             }
-        }
-        .onAppear {
-            locationManager.requestPermissionAndStart()
-        }
-        .onReceive(locationManager.$location) { location in
-            guard let location else { return }
+    }
 
-            if !hasCenteredOnUser {
-                hasCenteredOnUser = true
-                focusedRegion = MKCoordinateRegion(
-                    center: location.coordinate,
-                    span: .init(latitudeDelta: 0.01, longitudeDelta: 0.01)
-                )
-            }
-
-            if !indoorEntrances.isEmpty {
-                snapManager.update(userLocation: location,
-                                   entrances: indoorEntrances,
-                                   nodesByFloor: indoorNodesByFloor)
-            }
-
-            maybeSwitchFromAppleToCampusGraph(using: location)
-            updateNavigationProgress(using: location)
-
-            if isShowingParkingHighlights,
-               shouldRefocusParkingWhenLocationAvailable,
-               focusParkingHighlightsIncludingUser() {
-                shouldRefocusParkingWhenLocationAvailable = false
-            }
-        }
-        .onChange(of: appState.selectedBuildingID) { _, newID in
-            guard let newID else { return }
-            guard let building = buildingStore.buildings.first(where: { $0.id == newID }) else { return }
-
-            let resolvedDestination = resolveOutdoorDestination(for: building)
-            isShowingParkingHighlights = false
-            selectedIndoorLocation = nil
-            selectedOutdoorLocation = resolvedDestination.location
-            focusedRegion = MKCoordinateRegion(
-                center: resolvedDestination.focusCoordinate,
-                span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
-            )
-        }
-        .onChange(of: appState.outdoorLocationSelectionRequestID) { _, _ in
-            guard let requestedName = appState.selectedOutdoorLocationName else { return }
-            focusOutdoorLocationPreview(named: requestedName)
-        }
-        .onChange(of: appState.parkingHighlightRequestID) { _, _ in
-            isShowingParkingHighlights = true
-            selectedIndoorLocation = nil
-            selectedOutdoorLocation = nil
-            shouldRefocusParkingWhenLocationAvailable = !focusParkingHighlightsIncludingUser()
-        }
-        .onChange(of: selectedBuildingId) { _, newValue in
-            if suppressBuildingFloorReset {
-                suppressBuildingFloorReset = false
-                return
-            }
-            guard let building = indoorBuildings.first(where: { $0.id == newValue }) else { return }
-            guard !building.floors.isEmpty else {
-                selectedFloorId = ""
-                return
-            }
-            let defaultId = building.floors.first { $0.id == building.defaultFloorId }?.id
-                ?? building.floors.first?.id ?? ""
-            if !defaultId.isEmpty {
-                selectedFloorId = defaultId
-                focusOnBuilding(floorId: defaultId)
-            }
-        }
-        .onChange(of: snapManager.snappedBuildingId) { _, newBuildingId in
-            guard let newBuildingId, selectedBuildingId != newBuildingId else { return }
-            selectedBuildingId = newBuildingId
-        }
-        .onChange(of: selectedIndoorLocation?.id) { _, newValue in
-            if newValue != nil {
-                isShowingParkingHighlights = false
-                selectedOutdoorLocation = nil
-                detailDetent = .height(220)
-            }
-        }
-        .onChange(of: selectedOutdoorLocation?.id) { _, newValue in
-            if newValue != nil {
-                isShowingParkingHighlights = false
-                selectedIndoorLocation = nil
-            }
-        }
-        .onChange(of: appState.selectedRoom) { _, room in
-            guard let room else { return }
-            guard !indoorBuildings.isEmpty else {
-                pendingRoomSelection = room
-                return
-            }
-            applyRoomSelection(room)
-            appState.selectedRoom = nil
-        }
-        .overlay(alignment: .trailing) {
-            if !visibleFloors.isEmpty {
-                VStack {
-                    Spacer()
-                    FloorStack(floors: visibleFloors, selection: $selectedFloorId)
-                }
-                .padding(.trailing, 12)
-                .padding(.bottom, 40)
-            }
-        }
-        .overlay(alignment: .top) {
-            mapSearchBar
-        }
-        .overlay(alignment: .topLeading) {
-            if !indoorBuildings.isEmpty {
-                BuildingPicker(buildings: indoorBuildings, selection: $selectedBuildingId)
-                    .padding(.leading, 12)
-                    .padding(.top, 60)
-            }
-        }
-        .overlay(alignment: .top) {
-            if isNavigating, let activeNavigationRoute {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Next Direction")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+    private var mapWithOverlays: some View {
+        mapWithLifecycle
+            .overlay(alignment: .trailing) {
+                if !visibleFloors.isEmpty {
+                    VStack {
                         Spacer()
-                        Text(activeNavigationRoute.source.displayName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        FloorStack(floors: visibleFloors, selection: $selectedFloorId)
                     }
+                    .padding(.trailing, 12)
+                    .padding(.bottom, 40)
+                }
+            }
+            .overlay(alignment: .top) {
+                mapSearchBar
+            }
+            .overlay(alignment: .topLeading) {
+                if !indoorBuildings.isEmpty {
+                    BuildingPicker(buildings: indoorBuildings, selection: $selectedBuildingId)
+                        .padding(.leading, 12)
+                        .padding(.top, 60)
+                }
+            }
+            .overlay(alignment: .top) {
+                if isNavigating, let activeNavigationRoute {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Next Direction")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(activeNavigationRoute.source.displayName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
-                    if hasLoggedArrivalForActiveRoute {
-                        Text("You have arrived")
-                            .font(.headline)
-                    } else if let currentStep {
-                        Text(currentStep.instruction)
-                            .font(.headline)
+                        if hasLoggedArrivalForActiveRoute {
+                            Text("You have arrived")
+                                .font(.headline)
+                        } else if let currentStep {
+                            Text(currentStep.instruction)
+                                .font(.headline)
 
-                        if routeSteps.indices.contains(currentStepIndex + 1) {
-                            Text("Then: \(routeSteps[currentStepIndex + 1].instruction)")
+                            if routeSteps.indices.contains(currentStepIndex + 1) {
+                                Text("Then: \(routeSteps[currentStepIndex + 1].instruction)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal)
+                    .padding(.top, 12)
+                }
+            }
+            .overlay(alignment: .top) {
+                if isNavigatingIndoors, let step = currentIndoorStep {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(isRoutingFromEntrance ? "Preview from Entrance" : "Indoor Navigation")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if isRoutingFromEntrance {
+                                Image(systemName: "info.circle")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Text(step.instruction)
+                            .font(.headline)
+                        if let steps = activeIndoorRoute?.steps,
+                           steps.indices.contains(indoorCurrentStepIndex + 1) {
+                            Text("Then: \(steps[indoorCurrentStepIndex + 1].instruction)")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal)
+                    .padding(.top, 12)
                 }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                .padding(.horizontal)
-                .padding(.top, 12)
             }
-        }
-        .overlay(alignment: .top) {
-            if isNavigatingIndoors, let step = currentIndoorStep {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(isRoutingFromEntrance ? "Preview from Entrance" : "Indoor Navigation")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if isRoutingFromEntrance {
-                            Image(systemName: "info.circle")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            .overlay {
+                if isCalculatingRoute {
+                    ProgressView("Calculating route...")
+                        .padding()
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+            .overlay(alignment: .bottomLeading) {
+                if isNavigating {
+                    Button {
+                        endNavigation()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.red)
+                            .frame(width: 56, height: 56)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 20)
+                    .padding(.bottom, 90)
+                } else if isNavigatingIndoors {
+                    Button {
+                        endIndoorNavigation()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(.red)
+                            .frame(width: 56, height: 56)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.leading, 20)
+                    .padding(.bottom, 90)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if isShowingParkingHighlights {
+                    VStack(alignment: .trailing, spacing: 10) {
+                        if isParkingFilterExpanded {
+                            parkingFilterOptions
+                        }
+
+                        VStack(spacing: 8) {
+                            parkingFilterToggleButton
+
+                            Button {
+                                isShowingParkingHighlights = false
+                                shouldRefocusParkingWhenLocationAvailable = false
+                                isParkingFilterExpanded = false
+                            } label: {
+                                Image(systemName: "eye.slash.fill")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(.red)
+                                    .frame(width: 44, height: 44)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(8)
+                        .background(Color(.systemGray5), in: Capsule())
+                    }
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 90)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if isNavigating {
+                    Button {
+                        showDirectionsList = true
+                    } label: {
+                        Image(systemName: "list.bullet")
+                            .font(.title2)
+                            .padding()
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 90)
+                } else if isNavigatingIndoors {
+                    Button {
+                        showIndoorStepsList = true
+                    } label: {
+                        Image(systemName: "list.bullet")
+                            .font(.title2)
+                            .padding()
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 90)
+                }
+            }
+    }
+
+    private var mapWithSheets: some View {
+        mapWithOverlays
+            .sheet(item: $selectedOutdoorLocation) { location in
+                LocationPreviewSheet(
+                    location: location,
+                    isFavorite: isFavorite(location),
+                    largeTextEnabled: largeTextEnabled,
+                    onFavoriteTapped: { tappedLocation in
+                        toggleFavorite(for: tappedLocation)
+                    },
+                    onDirectionsTapped: { tappedLocation in
+                        Task {
+                            await startDirections(to: tappedLocation)
                         }
                     }
-                    Text(step.instruction)
-                        .font(.headline)
-                    if let steps = activeIndoorRoute?.steps,
-                       steps.indices.contains(indoorCurrentStepIndex + 1) {
-                        Text("Then: \(steps[indoorCurrentStepIndex + 1].instruction)")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                .padding(.horizontal)
-                .padding(.top, 12)
-            }
-        }
-        .overlay {
-            if isCalculatingRoute {
-                ProgressView("Calculating route...")
-                    .padding()
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-            }
-        }
-        .overlay(alignment: .bottomLeading) {
-            if isNavigating {
-                Button {
-                    endNavigation()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.red)
-                        .frame(width: 56, height: 56)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 20)
-                .padding(.bottom, 90)
-            } else if isNavigatingIndoors {
-                Button {
-                    endIndoorNavigation()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.red)
-                        .frame(width: 56, height: 56)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 20)
-                .padding(.bottom, 90)
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if isShowingParkingHighlights {
-                Button {
-                    isShowingParkingHighlights = false
-                    shouldRefocusParkingWhenLocationAvailable = false
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "eye.slash.fill")
-                        Text("Hide Parking")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            if isNavigating {
-                Button {
-                    showDirectionsList = true
-                } label: {
-                    Image(systemName: "list.bullet")
-                        .font(.title2)
-                        .padding()
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
-            } else if isNavigatingIndoors {
-                Button {
-                    showIndoorStepsList = true
-                } label: {
-                    Image(systemName: "list.bullet")
-                        .font(.title2)
-                        .padding()
-                        .background(.ultraThinMaterial, in: Circle())
-                }
-                .padding(.trailing, 20)
-                .padding(.bottom, 90)
-            }
-        }
-        .sheet(item: $selectedOutdoorLocation) { location in
-            LocationPreviewSheet(
-                location: location,
-                isFavorite: isFavorite(location),
-                largeTextEnabled: largeTextEnabled,
-                onFavoriteTapped: { tappedLocation in
-                    toggleFavorite(for: tappedLocation)
-                },
-                onDirectionsTapped: { tappedLocation in
-                    Task {
-                        await startDirections(to: tappedLocation)
-                    }
-                }
-            )
-        }
-        .sheet(item: $selectedIndoorLocation) { location in
-            IndoorLocationDetailView(
-                location: location,
-                largeTextEnabled: largeTextEnabled,
-                onNavigate: {
-                    startIndoorNavigation(to: location, onFloor: selectedFloorId)
-                }
-            )
-                .presentationDetents([.height(220), .medium, .large], selection: $detailDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackgroundInteraction(.enabled)
-        }
-        .sheet(isPresented: $showDirectionsList) {
-            if let activeNavigationRoute {
-                NavigationStepsView(
-                    route: activeNavigationRoute,
-                    currentStepIndex: currentStepIndex,
-                    largeTextEnabled: largeTextEnabled
-                )
-            } else {
-                Text("No route available.")
-                    .padding()
-            }
-        }
-        .sheet(isPresented: $showIndoorStepsList) {
-            if let route = activeIndoorRoute {
-                IndoorStepsView(
-                    steps: route.steps,
-                    currentStepIndex: indoorCurrentStepIndex,
-                    destinationName: route.destinationName
                 )
             }
-        }
-        .alert("Navigation Error", isPresented: Binding(
-            get: { navigationError != nil },
-            set: { if !$0 { navigationError = nil } }
-        )) {
-            Button("OK", role: .cancel) { navigationError = nil }
-        } message: {
-            Text(navigationError ?? "")
-        }
-        .alert("Indoor Navigation Error", isPresented: Binding(
-            get: { indoorNavigationError != nil },
-            set: { if !$0 { indoorNavigationError = nil } }
-        )) {
-            Button("OK", role: .cancel) { indoorNavigationError = nil }
-        } message: {
-            Text(indoorNavigationError ?? "")
-        }
+            .sheet(item: $selectedIndoorLocation) { location in
+                IndoorLocationDetailView(
+                    location: location,
+                    largeTextEnabled: largeTextEnabled,
+                    onNavigate: {
+                        startIndoorNavigation(to: location, onFloor: selectedFloorId)
+                    }
+                )
+                    .presentationDetents([.height(220), .medium, .large], selection: $detailDetent)
+                    .presentationDragIndicator(.visible)
+                    .presentationBackgroundInteraction(.enabled)
+            }
+            .sheet(isPresented: $showDirectionsList) {
+                if let activeNavigationRoute {
+                    NavigationStepsView(
+                        route: activeNavigationRoute,
+                        currentStepIndex: currentStepIndex,
+                        largeTextEnabled: largeTextEnabled
+                    )
+                } else {
+                    Text("No route available.")
+                        .padding()
+                }
+            }
+            .sheet(isPresented: $showIndoorStepsList) {
+                if let route = activeIndoorRoute {
+                    IndoorStepsView(
+                        steps: route.steps,
+                        currentStepIndex: indoorCurrentStepIndex,
+                        destinationName: route.destinationName
+                    )
+                }
+            }
+    }
+
+    private var mapWithAlerts: some View {
+        mapWithSheets
+            .alert("Navigation Error", isPresented: Binding(
+                get: { navigationError != nil },
+                set: { if !$0 { navigationError = nil } }
+            )) {
+                Button("OK", role: .cancel) { navigationError = nil }
+            } message: {
+                Text(navigationError ?? "")
+            }
+            .alert("Indoor Navigation Error", isPresented: Binding(
+                get: { indoorNavigationError != nil },
+                set: { if !$0 { indoorNavigationError = nil } }
+            )) {
+                Button("OK", role: .cancel) { indoorNavigationError = nil }
+            } message: {
+                Text(indoorNavigationError ?? "")
+            }
+    }
+
+    var body: some View {
+        mapWithAlerts
     }
 
     private var visibleFloors: [IndoorFloor] {
@@ -2252,6 +2425,70 @@ struct MapView: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 12)
+        }
+    }
+
+    private var parkingFilterToggleButton: some View {
+        Button {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                isParkingFilterExpanded.toggle()
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(.red)
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var parkingFilterOptions: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                parkingFilterChip(for: .allLots)
+                ForEach(ParkingLotCategory.allCases, id: \.self) { category in
+                    parkingFilterChip(for: .category(category))
+                }
+            }
+            .padding(8)
+            .background(.ultraThinMaterial, in: Capsule())
+        }
+        .transition(.move(edge: .leading).combined(with: .opacity))
+    }
+
+    private func parkingFilterChip(for option: ParkingFilterOption) -> some View {
+        let isSelected = selectedParkingFilters.contains(option)
+        return Button {
+            toggleParkingFilter(option)
+        } label: {
+            Text(option.title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isSelected ? .white : .primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? Color.red : Color(.secondarySystemBackground))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func toggleParkingFilter(_ option: ParkingFilterOption) {
+        if option == .allLots {
+            selectedParkingFilters = [.allLots]
+            return
+        }
+
+        selectedParkingFilters.remove(.allLots)
+        if selectedParkingFilters.contains(option) {
+            selectedParkingFilters.remove(option)
+        } else {
+            selectedParkingFilters.insert(option)
+        }
+
+        if selectedParkingFilters.isEmpty {
+            selectedParkingFilters = [.allLots]
         }
     }
 
@@ -2637,23 +2874,41 @@ private struct IndoorLocationDetailView: View {
     let location: IndoorLocation
     let largeTextEnabled: Bool
     let onNavigate: (() -> Void)?
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var theme: MarkerPreviewTheme {
+        MarkerPreviewTheme(scheme: colorScheme)
+    }
 
     var body: some View {
-        NavigationStack {
+        ZStack {
+            LinearGradient(colors: theme.background, startPoint: .topLeading, endPoint: .bottomTrailing)
+                .ignoresSafeArea()
+                .overlay(
+                    Circle()
+                        .fill(theme.accent.opacity(colorScheme == .dark ? 0.16 : 0.10))
+                        .frame(width: 210, height: 210)
+                        .blur(radius: 36)
+                        .offset(x: -130, y: -200)
+                )
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    MarkerPreviewCard(theme: theme) {
                         Text(location.name)
-                            .font(.title2.weight(.semibold))
+                            .font(.custom("Avenir Next", size: 25, relativeTo: .title2).weight(.bold))
+                            .foregroundStyle(theme.title)
+
                         if let description = location.description, !description.isEmpty {
                             Text(description)
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(theme.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         if !location.categories.isEmpty {
                             Text(location.categories.joined(separator: " • "))
                                 .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(theme.secondary)
                         }
                     }
 
@@ -2662,37 +2917,46 @@ private struct IndoorLocationDetailView: View {
                             onNavigate()
                         } label: {
                             Label("Navigate", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                                .font(.headline)
                                 .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .foregroundStyle(.white)
+                                .background(theme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .shadow(color: theme.accent.opacity(0.3), radius: 10, x: 0, y: 6)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.plain)
                     }
 
                     if !location.openingHours.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
+                        MarkerPreviewCard(theme: theme) {
                             Text("Hours")
                                 .font(.headline)
+                                .foregroundStyle(theme.title)
                             ForEach(location.openingHours) { entry in
                                 Text(formatHours(entry))
                                     .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(theme.secondary)
                             }
                         }
                     }
 
                     if let website = location.website?.url, !website.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
+                        MarkerPreviewCard(theme: theme) {
                             Text("Website")
                                 .font(.headline)
+                                .foregroundStyle(theme.title)
                             Text(location.website?.label ?? website)
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(theme.accent)
+                                .lineLimit(2)
+                                .truncationMode(.middle)
                         }
                     }
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
             }
-            .navigationTitle("Details")
-            .navigationBarTitleDisplayMode(.inline)
         }
         .dynamicTypeSize(largeTextEnabled ? .accessibility2 : .large)
     }
