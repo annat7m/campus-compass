@@ -4,6 +4,7 @@ import SwiftData
 struct ContentView: View {
     @StateObject private var appState = AppState()
     @StateObject private var buildingStore = BuildingStore()
+    @StateObject private var roomSearchStore = RoomSearchStore()
 
     @State private var settingsPath = NavigationPath()
     @State private var showWelcome = true
@@ -38,10 +39,15 @@ struct ContentView: View {
         }
         .environmentObject(appState)
         .environmentObject(buildingStore)
+        .environmentObject(roomSearchStore)
         .task {
             if buildingStore.buildings.isEmpty {
                 await buildingStore.fetchBuildings()
             }
+        }
+        .task {
+            guard roomSearchStore.rooms.isEmpty else { return }
+            await roomSearchStore.load()
         }
     }
 
