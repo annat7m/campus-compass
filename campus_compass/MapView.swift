@@ -904,19 +904,29 @@ private struct MKMapViewRepresentable: UIViewRepresentable {
         }
 
         private func markerSymbol(for location: IndoorLocation) -> String? {
-            if location.use == .bathroom { return "figure.stand" }
-            if location.use == .stairs { return "stairs" }
-            if location.use == .elevator { return "arrow.up.and.down" }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
-                return "cup.and.saucer.fill"
+            switch location.use {
+            case .bathroom:       return "figure.stand"
+            case .stairs:         return "stairs"
+            case .elevator:       return "arrow.up.and.down"
+            case .classroom:      return "studentdesk"
+            case .laboratory:     return "testtube.2"
+            case .conferenceRoom: return "person.3.fill"
+            case .office:         return "briefcase.fill"
+            case .lounge:         return "chair.lounge.fill"
+            case .gym:            return "figure.run"
+            case .foodAndDrink:   return "fork.knife"
+            case .none:
+                if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("cafe") || $0.localizedCaseInsensitiveContains("food") }) {
+                    return "cup.and.saucer.fill"
+                }
+                if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("lab") }) {
+                    return "testtube.2"
+                }
+                if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("book") }) {
+                    return "book.fill"
+                }
+                return nil
             }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("lab") }) {
-                return "testtube.2"
-            }
-            if location.categories.contains(where: { $0.localizedCaseInsensitiveContains("book") }) {
-                return "book.fill"
-            }
-            return nil
         }
     }
 }
