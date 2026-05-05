@@ -1032,6 +1032,7 @@ struct MapView: View {
     @State private var pendingGraphHandoff: PendingGraphHandoff?
     @State private var pendingGraphPreviewCoordinates: [CLLocationCoordinate2D] = []
     @State private var isSwitchingToGraphRoute = false
+    @State private var activeDirectionsRequestID = UUID()
     @State private var shouldRefocusParkingWhenLocationAvailable = false
     
     @StateObject private var locationManager = LocationManager()
@@ -1049,6 +1050,13 @@ struct MapView: View {
     @State private var isRoutingFromEntrance = false
     @State private var suppressBuildingFloorReset = false
     @State private var pendingRoomSelection: RoomSearchResult? = nil
+    // Tracks an explicit destination-building selection that differs from the user's
+    // physical (snapped) building, so the entrance snap manager doesn't yank the view back.
+    @State private var manualBuildingFocus: String? = nil
+    // Indoor room the user asked to navigate to before they entered its building. When the
+    // snap manager engages that building, indoor navigation auto-resumes.
+    @State private var pendingIndoorDestination: IndoorLocation? = nil
+    @State private var pendingIndoorDestinationFloorId: String = ""
     @State private var selectedOutdoorLocation: CampusLocation?
     @State private var indoorBuildings: [IndoorBuilding] = []
     @State private var indoorShapesByFloor: [String: [IndoorShape]] = [:]
@@ -1697,7 +1705,8 @@ struct MapView: View {
         resolveOutdoorDestination(for: matchCampusLocation(for: building))
     }
     
-    private func endNavigation() {
+    private func resetOutdoorNavigationState(preservingPendingIndoorDestination: Bool = false) {
+        activeDirectionsRequestID = UUID()
         activeNavigationRoute = nil
         currentStepIndex = 0
         isNavigating = false
@@ -1708,9 +1717,54 @@ struct MapView: View {
         pendingGraphHandoff = nil
         pendingGraphPreviewCoordinates = []
         isSwitchingToGraphRoute = false
+        showDirectionsList = false
+        if !preservingPendingIndoorDestination {
+            pendingIndoorDestination = nil
+            pendingIndoorDestinationFloorId = ""
+            manualBuildingFocus = nil
+        }
+    }
+
+    private func resetIndoorNavigationState() {
+        activeIndoorRoute = nil
+        isNavigatingIndoors = false
+        indoorCurrentStepIndex = 0
+        showIndoorStepsList = false
+        isRoutingFromEntrance = false
+        indoorNavDestinationFloorId = ""
+    }
+
+    private func endNavigation() {
+        resetOutdoorNavigationState()
     }
 
     private func startIndoorNavigation(to destination: IndoorLocation, onFloor floorId: String) {
+        resetOutdoorNavigationState()
+        resetIndoorNavigationState()
+        indoorNavigationError = nil
+        isShowingParkingHighlights = false
+        shouldRefocusParkingWhenLocationAvailable = false
+        selectedOutdoorLocation = nil
+        selectedIndoorLocation = nil
+
+        // Identify which building this destination floor belongs to.
+        let destinationBuildingId = indoorBuildings.first {
+            $0.floors.contains(where: { $0.id == floorId })
+        }?.id
+
+        // Cross-building: user is currently inside a different building than the destination.
+        // The single-campus indoor graph has no edges connecting separate buildings, so route
+        // outdoor to the destination building first; indoor nav resumes when the user enters it.
+        if let destinationBuildingId,
+           let currentBuildingId = snapManager.snappedBuildingId,
+           currentBuildingId != destinationBuildingId {
+            pendingIndoorDestination = destination
+            pendingIndoorDestinationFloorId = floorId
+            manualBuildingFocus = destinationBuildingId
+            Task { await routeOutdoorToBuilding(buildingId: destinationBuildingId) }
+            return
+        }
+
         guard let graph = indoorRoutingGraph else {
             indoorNavigationError = "Indoor map not loaded yet."
             return
@@ -1721,12 +1775,17 @@ struct MapView: View {
         let fromEntrance: Bool
 
         if let snappedFloor = snapManager.snappedFloorId,
-           let nearestCoord = snapManager.nearestNodeCoordinate {
+           let nearestCoord = snapManager.nearestNodeCoordinate,
+           // Make sure the snapped floor belongs to the same building as the destination —
+           // otherwise we'd try to route across the building boundary again.
+           destinationBuildingId == nil ||
+           indoorBuildings.first(where: { $0.floors.contains(where: { $0.id == snappedFloor }) })?.id == destinationBuildingId {
             startCoord = nearestCoord
             startFloor = snappedFloor
             fromEntrance = false
         } else {
-            let buildingEntrances = indoorEntrances.filter { $0.buildingId == selectedBuildingId }
+            let targetBuildingId = destinationBuildingId ?? selectedBuildingId
+            let buildingEntrances = indoorEntrances.filter { $0.buildingId == targetBuildingId }
             guard let entrance = buildingEntrances.first else {
                 indoorNavigationError = "Walk closer to a building entrance to start indoor navigation."
                 return
@@ -1757,18 +1816,92 @@ struct MapView: View {
         isRoutingFromEntrance = fromEntrance
         indoorCurrentStepIndex = 0
         indoorNavDestinationFloorId = floorId
+        // Successful indoor route — clear any pending cross-building state.
+        pendingIndoorDestination = nil
+        pendingIndoorDestinationFloorId = ""
+        manualBuildingFocus = nil
+    }
+
+    private var pendingDestinationBuildingId: String? {
+        guard !pendingIndoorDestinationFloorId.isEmpty else { return nil }
+        return indoorBuildings.first(where: {
+            $0.floors.contains(where: { $0.id == pendingIndoorDestinationFloorId })
+        })?.id
+    }
+
+    private func resumePendingIndoorNavigation() {
+        guard let destination = pendingIndoorDestination else { return }
+        let floorId = pendingIndoorDestinationFloorId
+        pendingIndoorDestination = nil
+        pendingIndoorDestinationFloorId = ""
+        manualBuildingFocus = nil
+        if isNavigating { endNavigation() }
+        startIndoorNavigation(to: destination, onFloor: floorId)
+    }
+
+    @MainActor
+    private func routeOutdoorToBuilding(buildingId: String) async {
+        guard let indoorBuilding = indoorBuildings.first(where: { $0.id == buildingId }) else {
+            indoorNavigationError = "Could not locate destination building."
+            pendingIndoorDestination = nil
+            pendingIndoorDestinationFloorId = ""
+            manualBuildingFocus = nil
+            return
+        }
+
+        let target = matchOutdoorLocation(named: indoorBuilding.name)
+            ?? syntheticOutdoorLocation(forBuilding: indoorBuilding)
+
+        guard let target else {
+            indoorNavigationError = "Could not locate \(indoorBuilding.name)."
+            pendingIndoorDestination = nil
+            pendingIndoorDestinationFloorId = ""
+            manualBuildingFocus = nil
+            return
+        }
+
+        guard pendingDestinationBuildingId == buildingId else { return }
+        await startDirections(to: target, preservingPendingIndoorDestination: true)
+    }
+
+    private func matchOutdoorLocation(named name: String) -> CampusLocation? {
+        if let match = campusLocations.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return match
+        }
+        if let building = buildingStore.buildings.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            return matchCampusLocation(for: building)
+        }
+        return nil
+    }
+
+    private func syntheticOutdoorLocation(forBuilding building: IndoorBuilding) -> CampusLocation? {
+        guard let entrance = indoorEntrances.first(where: { $0.buildingId == building.id }) else { return nil }
+        return CampusLocation(
+            name: building.name,
+            latitude: entrance.coordinate.latitude,
+            longitude: entrance.coordinate.longitude,
+            floors: nil,
+            studentServiceOffices: nil,
+            accessibilityInfo: nil,
+            hoursOpen: nil,
+            websiteURL: nil,
+            contactInfo: nil,
+            shortDescription: nil
+        )
     }
 
     private func endIndoorNavigation() {
-        activeIndoorRoute = nil
-        isNavigatingIndoors = false
-        indoorCurrentStepIndex = 0
-        isRoutingFromEntrance = false
-        indoorNavDestinationFloorId = ""
+        resetIndoorNavigationState()
     }
     
     @MainActor
-    private func startDirections(to location: CampusLocation) async {
+    private func startDirections(
+        to location: CampusLocation,
+        preservingPendingIndoorDestination: Bool = false
+    ) async {
+        resetOutdoorNavigationState(preservingPendingIndoorDestination: preservingPendingIndoorDestination)
+        resetIndoorNavigationState()
+        let requestID = activeDirectionsRequestID
         let resolvedDestination = resolveOutdoorDestination(for: location)
         let destinationCoordinate = resolvedDestination.location.coordinate
 
@@ -1817,6 +1950,7 @@ struct MapView: View {
                             destinationName: resolvedDestination.location.name,
                             destinationCoordinate: destinationCoordinate
                         )
+                        guard activeDirectionsRequestID == requestID else { return }
                     }
                 case .appleToGraphEntry:
                     route = try await routeCoordinator.appleRoute(
@@ -1824,6 +1958,7 @@ struct MapView: View {
                         destinationName: bootstrap.entryNode.name ?? "Campus Path Entry",
                         destinationCoordinate: bootstrap.entryNode.coordinate
                     )
+                    guard activeDirectionsRequestID == requestID else { return }
                     pendingGraphHandoff = PendingGraphHandoff(
                         entryCoordinate: bootstrap.entryNode.coordinate,
                         destinationName: resolvedDestination.location.name,
@@ -1850,10 +1985,12 @@ struct MapView: View {
                 )
             }
 
+            guard activeDirectionsRequestID == requestID else { return }
             applyActiveNavigationRoute(route)
             navigationDestination = resolvedDestination.location
             
         } catch {
+            guard activeDirectionsRequestID == requestID else { return }
             navigationError = error.localizedDescription
             isCalculatingRoute = false
             pendingGraphHandoff = nil
@@ -2014,7 +2151,19 @@ struct MapView: View {
                 }
             }
             .onChange(of: snapManager.snappedBuildingId) { _, newBuildingId in
-                guard let newBuildingId, selectedBuildingId != newBuildingId else { return }
+                guard let newBuildingId else { return }
+
+                // The user just walked into the building they were heading to — resume indoor nav.
+                if pendingIndoorDestination != nil,
+                   pendingDestinationBuildingId == newBuildingId {
+                    resumePendingIndoorNavigation()
+                    return
+                }
+
+                // Don't yank the view back to the snapped building if the user is intentionally
+                // looking at a different one (e.g., browsing a destination room across campus).
+                if let manualBuildingFocus, manualBuildingFocus != newBuildingId { return }
+                guard selectedBuildingId != newBuildingId else { return }
                 selectedBuildingId = newBuildingId
             }
             .onChange(of: selectedIndoorLocation?.id) { _, newValue in
@@ -2045,8 +2194,27 @@ struct MapView: View {
         mapWithLifecycle
             .overlay(alignment: .trailing) {
                 if !visibleFloors.isEmpty {
-                    VStack {
+                    VStack(spacing: 12) {
                         Spacer()
+                        if isNavigating {
+                            Button {
+                                showDirectionsList = true
+                            } label: {
+                                Image(systemName: "list.bullet")
+                                    .font(.title2)
+                                    .padding()
+                                    .background(.ultraThinMaterial, in: Circle())
+                            }
+                        } else if isNavigatingIndoors {
+                            Button {
+                                showIndoorStepsList = true
+                            } label: {
+                                Image(systemName: "list.bullet")
+                                    .font(.title2)
+                                    .padding()
+                                    .background(.ultraThinMaterial, in: Circle())
+                            }
+                        }
                         FloorStack(floors: visibleFloors, selection: $selectedFloorId)
                     }
                     .padding(.trailing, 12)
@@ -2192,28 +2360,32 @@ struct MapView: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                if isNavigating {
-                    Button {
-                        showDirectionsList = true
-                    } label: {
-                        Image(systemName: "list.bullet")
-                            .font(.title2)
-                            .padding()
-                            .background(.ultraThinMaterial, in: Circle())
+                // Only render here when there's no FloorStack — when floors are visible,
+                // the step-by-step button is placed above the floor toggle in the .trailing overlay.
+                if visibleFloors.isEmpty {
+                    if isNavigating {
+                        Button {
+                            showDirectionsList = true
+                        } label: {
+                            Image(systemName: "list.bullet")
+                                .font(.title2)
+                                .padding()
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 90)
+                    } else if isNavigatingIndoors {
+                        Button {
+                            showIndoorStepsList = true
+                        } label: {
+                            Image(systemName: "list.bullet")
+                                .font(.title2)
+                                .padding()
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 90)
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 90)
-                } else if isNavigatingIndoors {
-                    Button {
-                        showIndoorStepsList = true
-                    } label: {
-                        Image(systemName: "list.bullet")
-                            .font(.title2)
-                            .padding()
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 90)
                 }
             }
     }
@@ -2302,6 +2474,11 @@ struct MapView: View {
         suppressBuildingFloorReset = selectedBuildingId != room.buildingId
         selectedBuildingId = room.buildingId
         selectedFloorId = room.floorId
+        if let snappedBuildingId = snapManager.snappedBuildingId, snappedBuildingId != room.buildingId {
+            manualBuildingFocus = room.buildingId
+        } else {
+            manualBuildingFocus = nil
+        }
         if let location = indoorLocationsByFloor[room.floorId]?.first(where: { $0.geometryId == room.geometryId }) {
             focusOnRoom(geometryId: location.geometryId, floorId: room.floorId)
             selectedIndoorLocation = location
@@ -2572,8 +2749,13 @@ struct MapView: View {
         guard location.distance(from: entryLocation) <= graphStepArrivalThreshold else { return }
 
         isSwitchingToGraphRoute = true
+        let requestID = activeDirectionsRequestID
         Task { @MainActor in
-            defer { isSwitchingToGraphRoute = false }
+            defer {
+                if self.activeDirectionsRequestID == requestID {
+                    self.isSwitchingToGraphRoute = false
+                }
+            }
             guard let currentCoordinate = locationManager.location?.coordinate else { return }
 
             if let graphRoute = routeCoordinator.campusRoute(
@@ -2583,10 +2765,12 @@ struct MapView: View {
                 preferredAnchorNodeID: handoff.preferredAnchorNodeID,
                 requireAccessibleEntrances: shouldUseAccessibleEntrances
             ) {
+                guard self.activeDirectionsRequestID == requestID else { return }
                 self.pendingGraphHandoff = nil
                 self.pendingGraphPreviewCoordinates = []
                 applyActiveNavigationRoute(graphRoute)
             } else {
+                guard self.activeDirectionsRequestID == requestID else { return }
                 self.pendingGraphHandoff = nil
                 self.pendingGraphPreviewCoordinates = []
             }
