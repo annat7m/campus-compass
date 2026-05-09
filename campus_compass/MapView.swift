@@ -54,6 +54,7 @@ struct LocationPreviewSheet: View {
     let largeTextEnabled: Bool
     let onFavoriteTapped: (CampusLocation) -> Void
     let onDirectionsTapped: (CampusLocation) -> Void
+    let onIndoorMapTapped: ((CampusLocation) -> Void)?
     @Environment(\.colorScheme) private var colorScheme
 
     private var theme: MarkerPreviewTheme {
@@ -108,18 +109,38 @@ struct LocationPreviewSheet: View {
                         }
                     }
 
-                    Button {
-                        onDirectionsTapped(location)
-                    } label: {
-                        Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .foregroundStyle(.white)
-                            .background(theme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .shadow(color: theme.accent.opacity(0.3), radius: 10, x: 0, y: 6)
+                    HStack(spacing: 12) {
+                        if let onIndoorMapTapped {
+                            Button {
+                                onIndoorMapTapped(location)
+                            } label: {
+                                Label("Indoor Map", systemImage: "map.fill")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .foregroundStyle(theme.accent)
+                                    .background(theme.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .stroke(theme.accent.opacity(0.35), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Button {
+                            onDirectionsTapped(location)
+                        } label: {
+                            Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .foregroundStyle(.white)
+                                .background(theme.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .shadow(color: theme.accent.opacity(0.3), radius: 10, x: 0, y: 6)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
 
                     MarkerPreviewCard(theme: theme) {
                         if let floors = location.floors {
@@ -1664,6 +1685,43 @@ struct MapView: View {
         name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    private func normalizedIndoorBuildingKey(name: String) -> String {
+        let folded = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return folded
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
+    private func indoorBuildingNameKeys(for name: String) -> Set<String> {
+        var keys: Set<String> = [normalizedIndoorBuildingKey(name: name)]
+
+        if let openParen = name.firstIndex(of: "("),
+           let closeParen = name[openParen...].firstIndex(of: ")") {
+            let outsideParentheses = name[..<openParen]
+            let insideParentheses = name[name.index(after: openParen)..<closeParen]
+            keys.insert(normalizedIndoorBuildingKey(name: String(outsideParentheses)))
+            keys.insert(normalizedIndoorBuildingKey(name: String(insideParentheses)))
+        }
+
+        if keys.contains("strain hall") {
+            keys.insert("strain science center")
+        }
+        if keys.contains("washburne hall university center") {
+            keys.insert("washburne university center")
+        }
+
+        return keys.filter { !$0.isEmpty }
+    }
+
+    private func indoorBuilding(for location: CampusLocation) -> IndoorBuilding? {
+        let locationKeys = indoorBuildingNameKeys(for: location.name)
+        return indoorBuildings.first { building in
+            guard !building.floors.isEmpty else { return false }
+            return !locationKeys.isDisjoint(with: indoorBuildingNameKeys(for: building.name))
+        }
+    }
+
     private func matchCampusLocation(for building: CampusBuilding) -> CampusLocation {
         // Try to match your rich local data first (best for sheet)
         if let match = campusLocations.first(where: { $0.name.caseInsensitiveCompare(building.name) == .orderedSame }) {
@@ -2404,6 +2462,9 @@ struct MapView: View {
                         Task {
                             await startDirections(to: tappedLocation)
                         }
+                    },
+                    onIndoorMapTapped: indoorBuilding(for: location) == nil ? nil : { tappedLocation in
+                        showIndoorMap(for: tappedLocation)
                     }
                 )
             }
@@ -2814,6 +2875,33 @@ struct MapView: View {
             center: resolvedDestination.focusCoordinate,
             span: MKCoordinateSpan(latitudeDelta: 0.002, longitudeDelta: 0.002)
         )
+    }
+
+    private func showIndoorMap(for location: CampusLocation) {
+        guard let building = indoorBuilding(for: location),
+              let defaultFloorId = building.floors.first(where: { $0.id == building.defaultFloorId })?.id
+                ?? building.floors.first?.id else {
+            return
+        }
+
+        resetOutdoorNavigationState()
+        resetIndoorNavigationState()
+        indoorNavigationError = nil
+        isShowingParkingHighlights = false
+        shouldRefocusParkingWhenLocationAvailable = false
+        selectedOutdoorLocation = nil
+        selectedIndoorLocation = nil
+        detailDetent = .height(220)
+
+        if let snappedBuildingId = snapManager.snappedBuildingId, snappedBuildingId != building.id {
+            manualBuildingFocus = building.id
+        } else {
+            manualBuildingFocus = nil
+        }
+
+        selectedBuildingId = building.id
+        selectedFloorId = defaultFloorId
+        focusOnBuilding(floorId: defaultFloorId)
     }
 
     private func recordArrivalIfNeeded(using location: CLLocation) {
